@@ -17,10 +17,15 @@ class RouterAsSignalEngine:
     المشتركة تماماً (لا تكرار، لا مسار مختصر).
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, db=None):
         self.cfg = cfg
         self.router = EntryRouter(cfg)
         self._underlying = self.router.baseline.engine  # لإعادة استخدام prepare()
+        # `db` مطلوبة فقط لمسار Breakout Retest (تسجيل Setups وتتبّعها).
+        # بدونها يرفض `process_breakout_retest()` بـ NO_DB_CONTEXT —
+        # أي أن تفعيل الميزة بلا قاعدة يعني "لا إشارة اختراق أبداً"
+        # بصمت. تمريرها من live_trader.py يجعل الميزة تعمل فعلاً.
+        self.db = db
 
     def prepare(self, data):
         return self._underlying.prepare(data)
@@ -40,7 +45,8 @@ class RouterAsSignalEngine:
                   # (no_trade.py) عديم الأثر تماماً في المسار الحي
                   # الفعلي رغم مروره في اختبارات SignalEngine المباشرة.
                   'btc_ctx': kw.get('btc_ctx'),
-                  'spread_bps': kw.get('spread_bps')}
+                  'spread_bps': kw.get('spread_bps'),
+                  'db': kw.get('db', self.db)}
         es = self.router.evaluate(data, idx, context)
 
         decision = BUY if es.eligible else WAIT

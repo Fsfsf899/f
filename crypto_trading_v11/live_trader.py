@@ -107,7 +107,7 @@ class LiveTrader:
         # بمسار Paper/Testnet/Live الحقيقي إطلاقاً). عند تعطيلهما
         # (الافتراضي)، النتيجة مطابقة حرفياً لـ SignalEngine المباشر
         # — مُختبَر صراحة (test_adapter_identical_to_direct_signal_engine_when_disabled).
-        self.engine = RouterAsSignalEngine(cfg)
+        self.engine = RouterAsSignalEngine(cfg, db=self.db)
         self.sizer = PositionSizer(cfg.risk, CostModel(cfg.costs))
 
         self.client = None
@@ -501,7 +501,7 @@ class LiveTrader:
             except DataUnavailable:
                 continue   # يُترَك خارج القائمة — scan_and_rank يُصنِّفه INVALID_MARKET_DATA
             q = _validate(d, now_ms=self.public.now_ms())
-            engines[sym] = RouterAsSignalEngine(self.cfg)
+            engines[sym] = RouterAsSignalEngine(self.cfg, db=self.db)
             data_by_symbol[sym] = d
             idx_by_symbol[sym] = len(d) - 1
             dq_by_symbol[sym] = q.score
