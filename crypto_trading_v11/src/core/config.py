@@ -115,6 +115,15 @@ class RiskConfig:
     max_daily_trades: int = 5
     max_position_notional_pct: float = 25.0
 
+    # ── حالة الحساب (الأقسام 6 و8 من مواصفة V11 FINAL) ──
+    # الاحتياطي النقدي: الأكبر بين النسبة والمبلغ الثابت. يُقتطَع من
+    # المتاح **قبل** أي حساب حجم، فلا ترى صيغة المخاطرة مالاً لا يجوز
+    # إنفاقه. القيم الافتراضية محافظة ومقصودة، لا مُحسَّنة على بيانات.
+    min_cash_reserve_pct: float = 10.0
+    min_cash_reserve_quote: float = 0.0
+    # أقصى عمر مقبول للقطة الرصيد قبل رفض التحجيم (ACCOUNT_BALANCE_STALE)
+    max_balance_age_s: float = 60.0
+
 
 @dataclass
 class ExecutionConfig:

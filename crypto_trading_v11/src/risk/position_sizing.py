@@ -35,8 +35,32 @@ class PositionSizer:
                   recent_win_rate: Optional[float] = None,
                   regime_confidence: float = 1.0,
                   step_size: Optional[float] = None,
-                  min_notional: float = 10.0) -> Dict:
+                  min_notional: float = 10.0,
+                  account=None,
+                  min_qty: float = 0.0,
+                  fee_rate: float = 0.0) -> Dict:
+        """
+        `account`: `AccountSnapshot` اختياري (الأقسام 3-10). عند تمريره
+        يصير **هو** مصدر الحقيقة للحجم:
+
+          - الأساس هو `usable_equity` (المتاح ناقص الاحتياطي)، لا
+            `equity` الكلية التي تشمل المحجوز وقيمة المراكز — القسم 32
+            يمنع صراحةً معاملة المحجوز كمتاح.
+          - قيمة المركز النهائية لا تتجاوز رأس المال القابل للاستخدام
+            بعد خصم رسوم الدخول المقدَّرة (القسم 7).
+          - بعد كل تقريب وتحديد، **يُعاد حساب المخاطرة الفعلية**، وإن
+            تجاوزت المسموح ⇒ لا صفقة (القسم 10).
+
+        غيابه يُبقي السلوك القديم حرفياً — توافق خلفي كامل للباكتست
+        وكل مستدعٍ قائم.
+        """
         cfg = self.cfg
+        if account is not None:
+            block = account.blocking_reason()
+            if block:
+                return {'qty': 0.0, 'notional': 0.0, 'risk_pct': 0.0,
+                        'reason': block, 'blocked': True}
+            equity = account.usable_equity
         if entry <= 0 or stop <= 0 or entry <= stop or equity <= 0:
             return {'qty': 0.0, 'notional': 0.0, 'risk_pct': 0.0,
                     'reason': 'مدخلات غير صالحة'}
@@ -73,15 +97,57 @@ class PositionSizer:
             qty = cap / entry
             notional = qty * entry
 
+        # ── سقف رأس المال القابل للاستخدام (القسم 7) ──
+        # قيمة المركز + رسوم الدخول المقدَّرة يجب ألّا تتجاوز المتاح بعد
+        # الاحتياطي. الاقتطاع هنا قبل التقريب، ثم يُعاد فحص المخاطرة.
+        capped_by_balance = False
+        if account is not None:
+            budget = account.usable_equity / (1.0 + max(0.0, fee_rate))
+            if notional > budget:
+                qty = budget / entry
+                notional = qty * entry
+                capped_by_balance = True
+
         if step_size and step_size > 0:
+            # لا تقريب لأعلى أبداً (القسم 10) — الأرضية فقط
             qty = np.floor(qty / step_size) * step_size
             notional = qty * entry
 
+        if min_qty and qty < min_qty:
+            return {'qty': 0.0, 'notional': round(notional, 4),
+                    'risk_pct': risk_pct, 'blocked': True,
+                    'reason': f'EXCHANGE_MIN_QTY {min_qty} > {qty}'}
+
         if notional < min_notional:
-            return {'qty': 0.0, 'notional': round(notional, 4), 'risk_pct': risk_pct,
-                    'reason': f'أقل من الحد الأدنى ${min_notional}'}
+            # الحد الأدنى للمنصة أكبر مما تسمح به المخاطرة/الرصيد.
+            # القسم 10 صريح: لا تُقرِّب لأعلى لإرضاء المنصة.
+            reason = ('EXCHANGE_MINIMUM_EXCEEDS_RISK_LIMIT'
+                      if account is not None
+                      else f'أقل من الحد الأدنى ${min_notional}')
+            return {'qty': 0.0, 'notional': round(notional, 4),
+                    'risk_pct': risk_pct, 'blocked': account is not None,
+                    'capped_by_balance': capped_by_balance, 'reason': reason}
+
+        # ── إعادة حساب المخاطرة الفعلية بعد التقريب والتحديد (القسم 10) ──
+        actual_risk_amount = qty * eff
+        actual_risk_pct = actual_risk_amount / equity * 100 if equity > 0 else 0.0
+        if account is not None and actual_risk_pct > cfg.max_risk_per_trade_pct + 1e-9:
+            return {'qty': 0.0, 'notional': round(notional, 4),
+                    'risk_pct': round(actual_risk_pct, 4), 'blocked': True,
+                    'reason': 'ACTUAL_RISK_EXCEEDS_LIMIT',
+                    'actual_risk_pct': round(actual_risk_pct, 4),
+                    'max_risk_pct': cfg.max_risk_per_trade_pct}
 
         return {
+            'actual_risk_amount': round(actual_risk_amount, 6),
+            'actual_risk_pct': round(actual_risk_pct, 4),
+            'capped_by_balance': capped_by_balance,
+            'usable_equity': round(equity, 6),
+            'estimated_entry_fee': round(notional * max(0.0, fee_rate), 6),
+            'remaining_available': (
+                round(account.available_balance - notional
+                      - notional * max(0.0, fee_rate), 6)
+                if account is not None else None),
             'qty': float(qty), 'notional': float(notional),
             'risk_pct': round(risk_pct, 4),
             'risk_amount': round(risk_amount, 4),

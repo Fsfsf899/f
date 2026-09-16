@@ -28,6 +28,9 @@ from src.signals.engine import SignalEngine, BUY
 from src.market.btc_context import evaluate as evaluate_btc_context
 from src.research.router_adapter import RouterAsSignalEngine
 from src.risk.position_sizing import PositionSizer
+from src.account.state import AccountSnapshot
+from src.account.providers import (PaperAccountProvider,
+                                   ExchangeAccountProvider)
 from src.risk.risk_guard import RiskGuard
 from src.backtest.costs import CostModel
 from src.storage.database import Database
@@ -116,6 +119,7 @@ class LiveTrader:
         self.gate = None
         self.paper = None
         self.paper_market = None   # PaperMarketProvider — Paper فقط
+        self.account_provider = None   # مزوّد حالة الحساب (الأقسام 3-17)
         self.shadow = None
         # RiskGuard مشترك — نفس الكائن الذي يستخدمه الباكتست، محفوظ في
         # القاعدة فعلياً هنا (خلافاً للباكتست: db=None هناك، بلا حاجة
@@ -145,6 +149,9 @@ class LiveTrader:
                                      starting_quote=float(os.getenv('CAPITAL', '1000')),
                                      env_tag=envcfg.tag)
             self.client = self.paper
+            # القسم 15: حساب ورقي محاكى بالكامل، بلا أي نداء شبكة
+            self.account_provider = PaperAccountProvider(
+                cfg.risk, self.paper, quote_asset='USDT')
             self.orders = OrderManager(self.db, self.client, cfg, self.health,
                                        risk_guard=self.risk_guard)
             self.gate = self.orders.gate
@@ -161,6 +168,11 @@ class LiveTrader:
                     f"⛔ endpoint العميل {self.client.base} "
                     f"لا يطابق البيئة {envcfg.endpoint}")
             self.client.sync_time()
+            # القسم 16: العميل مبنيّ من مفاتيح هذه البيئة وحدها، فلا
+            # يمكن لهذا المزوّد أن يقرأ رصيد بيئة أخرى إطلاقاً.
+            self.account_provider = ExchangeAccountProvider(
+                cfg.risk, self.client, quote_asset='USDT',
+                source=self.mode)
             self.orders = OrderManager(self.db, self.client, cfg, self.health,
                                        risk_guard=self.risk_guard)
             self.gate = self.orders.gate
@@ -210,6 +222,35 @@ class LiveTrader:
         except BinanceError as e:
             self.health.record_api_failure(str(e))
             return 0.0
+
+    def _symbol_rules(self, symbol: str) -> Dict:
+        """قواعد المنصة للرمز — مُخزَّنة مؤقتاً في العميل، بلا نداء
+        إضافي. التعذّر يُعيد قاموساً فارغاً فيعود المحجِّم لقيمه
+        الافتراضية بدل الانهيار."""
+        try:
+            return dict(self.client.rules(symbol)) if self.client else {}
+        except Exception:
+            return {}
+
+    def account_snapshot(self, symbols: Optional[List[str]] = None) -> AccountSnapshot:
+        """
+        لقطة حالة الحساب — المصدر الوحيد للتحجيم (الأقسام 3-8).
+
+        ⚠️ `equity()` أعلاه تُرجع الحقوق **الكلية** (متاح + محجوز + قيمة
+        المراكز) وتبقى للتقارير ومنحنى الحقوق وحدها. تمريرها إلى
+        `PositionSizer` كان يعني معاملة الرصيد المحجوز في أوامر قائمة
+        كأنه نقد قابل للإنفاق — ممنوع صراحةً في القسمين 3 و32.
+        التحجيم يستخدم `usable_equity` من هذه اللقطة: المتاح فقط، ناقص
+        الاحتياطي.
+
+        لا مزوّد ⇒ لقطة UNAVAILABLE، فيفشل التحجيم مغلقاً (القسم 17).
+        """
+        if self.account_provider is None:
+            snap = AccountSnapshot(quote_asset='USDT', source=self.mode)
+            snap.reasons.append('NO_ACCOUNT_PROVIDER')
+            return snap
+        return self.account_provider.snapshot(
+            symbols or list(self.scan_symbols or [self.symbol]))
 
     def _sync_symbol_to_open_position(self, now: str, verbose: bool) -> Optional[dict]:
         """
@@ -424,9 +465,29 @@ class LiveTrader:
                     'health': h.reasons, 'data_quality': round(q.score, 3)}
 
         # 6) الحجم
-        sz = self.sizer.calculate(equity=eq, entry=sig.entry, stop=sig.stop_loss,
-                                  stars=sig.stars,
-                                  consecutive_losses=acc['consecutive_losses'])
+        # ── الحجم من حالة الحساب الحقيقية (الأقسام 3-10) ──
+        # `eq` أعلاه حقوق كلية للتقارير؛ التحجيم يستخدم اللقطة وحدها.
+        snap = self.account_snapshot([self.symbol])
+        rules = self._symbol_rules(self.symbol)
+        sz = self.sizer.calculate(
+            equity=eq, entry=sig.entry, stop=sig.stop_loss, stars=sig.stars,
+            consecutive_losses=acc['consecutive_losses'],
+            account=snap, step_size=rules.get('step_size'),
+            min_qty=rules.get('min_qty', 0.0),
+            min_notional=rules.get('min_notional', 10.0),
+            fee_rate=self.cfg.costs.taker_fee)
+        if sz.get('blocked') or sz['notional'] <= 0:
+            reason = sz.get('reason', 'SIZING_BLOCKED')
+            self.db.save_recommendation(sid, sig.to_dict(), acted=False,
+                                        reason=reason)
+            self.db.system_event('SIZING_BLOCKED',
+                                 f"{self.symbol}: {reason} | "
+                                 f"usable={snap.usable_equity:.2f} "
+                                 f"status={snap.status}")
+            if verbose:
+                print(f'[{now}] ⛔ لا حجم صالح: {reason}')
+            return {'status': 'NO_TRADE', 'sentinel': reason,
+                    'signal_id': sid, 'account': snap.to_dict()}
         notional = min(sz['notional'], self.max_notional)
         rid = self.db.save_recommendation(sid, sig.to_dict(), acted=False,
                                           reason='pending')
@@ -526,6 +587,9 @@ class LiveTrader:
         dk = day_key()
         open_pos = self.db.open_positions()
         eq = self.equity()
+        # لقطة واحدة لكل المسح — كل المرشَّحين يُقيَّمون بنفس حالة
+        # الحساب بالضبط، فلا يفوز رمز لأن لقطته أُخذت في لحظة أفضل.
+        snap = self.account_snapshot(list(self.scan_symbols or []))
         acc = {'open_positions': len(open_pos),
               'daily_trades': (self.db.get_day(dk) or {}).get('trades', 0) or 0,
               'daily_loss_hit': self.risk_guard.daily_loss_hit(eq),
@@ -547,10 +611,20 @@ class LiveTrader:
         # (`self.sizer`) وسقف `max_notional` نفسه المستخدَم في مسار
         # التنفيذ — لا مصدر حجم موازٍ.
         def _notional_for(sym: str, sig) -> float:
+            # القسم 11: تقدير الحجم للمرشَّح يمرّ بنفس حالة الحساب
+            # الحقيقية — أصل لا يمكن تداوله بالرصيد الحالي لا يجوز أن
+            # يُختار كأفضل فرصة.
+            rules = self._symbol_rules(sym)
             sz = self.sizer.calculate(
                 equity=eq, entry=sig.entry, stop=sig.stop_loss,
                 stars=sig.stars,
-                consecutive_losses=acc['consecutive_losses'])
+                consecutive_losses=acc['consecutive_losses'],
+                account=snap, step_size=rules.get('step_size'),
+                min_qty=rules.get('min_qty', 0.0),
+                min_notional=rules.get('min_notional', 10.0),
+                fee_rate=self.cfg.costs.taker_fee)
+            if sz.get('blocked') or sz['notional'] <= 0:
+                return 0.0
             return min(sz['notional'], self.max_notional)
 
         open_notional = {p['symbol']: p['qty'] * p['entry_price']
