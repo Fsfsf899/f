@@ -1,0 +1,13 @@
+.env
+*.pyc
+__pycache__/
+# مسارات وقت التشغيل — مثبّتة بالجذر حتى لا تبتلع حزم المصدر مثل src/data/
+/data/
+/logs/
+/cache/
+*.db
+*.db.bak-*
+*.sqlite
+.venv/
+venv/
+.DS_Store

@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "data_source": "SYNTHETIC_FIXTURE_NOT_REAL_MARKET_DATA",
+    "valid_for_profitability_claims": false,
+    "note": "بيانات اختبار مولَّدة رياضياً — مقارنة معزولة فعلياً (لا Baseline يحجب الأثر)، لكنها تبقى عينة اصطناعية واحدة"
+  },
+  "by_setup": {
+    "baseline": {
+      "oos_window_count": 5,
+      "oos_positive_window_count": 5,
+      "oos_positive_window_rate": 1.0,
+      "oos_pf_median": 2.093,
+      "oos_pf_min": 1.09,
+      "oos_pf_max": 3.409,
+      "oos_total_trades": 74
+    },
+    "breakout_only": {
+      "oos_window_count": 5,
+      "oos_positive_window_count": 5,
+      "oos_positive_window_rate": 1.0,
+      "oos_pf_median": 2.093,
+      "oos_pf_min": 1.09,
+      "oos_pf_max": 3.409,
+      "oos_total_trades": 74
+    },
+    "pullback_only": {
+      "oos_window_count": 5,
+      "oos_positive_window_count": 5,
+      "oos_positive_window_rate": 1.0,
+      "oos_pf_median": 2.093,
+      "oos_pf_min": 1.09,
+      "oos_pf_max": 3.409,
+      "oos_total_trades": 74
+    }
+  }
+}

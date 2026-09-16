@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "data_source": "SYNTHETIC_FIXTURE_NOT_REAL_MARKET_DATA",
+    "valid_for_profitability_claims": false,
+    "note": "بيانات اختبار مولَّدة رياضياً — مقارنة معزولة فعلياً (لا Baseline يحجب الأثر)، لكنها تبقى عينة اصطناعية واحدة"
+  },
+  "variants": {
+    "baseline": {
+      "total_trades": 92,
+      "win_rate": 46.74,
+      "profit_factor": 2.131,
+      "gross_profit_factor": null,
+      "expectancy": 27.4422,
+      "net_return_pct": 25.247,
+      "max_drawdown_pct": 3.977,
+      "sharpe": 4.849,
+      "sortino": 3.579,
+      "calmar": 16.02,
+      "total_fees": 515.72,
+      "total_slippage": 416.54,
+      "isolation": "baseline"
+    },
+    "breakout_only": {
+      "total_trades": 32,
+      "win_rate": 50.0,
+      "profit_factor": 2.125,
+      "gross_profit_factor": null,
+      "expectancy": 25.658,
+      "net_return_pct": 8.211,
+      "max_drawdown_pct": 3.948,
+      "sharpe": 3.009,
+      "sortino": 1.242,
+      "calmar": 4.777,
+      "total_fees": 169.82,
+      "total_slippage": 130.43,
+      "isolation": "isolated"
+    },
+    "pullback_only": {
+      "total_trades": 57,
+      "win_rate": 52.63,
+      "profit_factor": 2.46,
+      "gross_profit_factor": null,
+      "expectancy": 31.7817,
+      "net_return_pct": 18.116,
+      "max_drawdown_pct": 3.296,
+      "sharpe": 5.046,
+      "sortino": 3.07,
+      "calmar": 13.344,
+      "total_fees": 316.71,
+      "total_slippage": 229.92,
+      "isolation": "isolated"
+    },
+    "breakout_retest_only": {
+      "total_trades": 24,
+      "win_rate": 29.17,
+      "profit_factor": 1.39,
+      "gross_profit_factor": null,
+      "expectancy": 7.9226,
+      "net_return_pct": 1.901,
+      "max_drawdown_pct": 2.552,
+      "sharpe": 1.391,
+      "sortino": 0.348,
+      "calmar": 1.65,
+      "total_fees": 122.87,
+      "total_slippage": 101.2,
+      "isolation": "isolated_stateful"
+    },
+    "breakout_and_pullback_router": {
+      "total_trades": 92,
+      "win_rate": 46.74,
+      "profit_factor": 2.131,
+      "gross_profit_factor": null,
+      "expectancy": 27.4422,
+      "net_return_pct": 25.247,
+      "max_drawdown_pct": 3.977,
+      "sharpe": 4.849,
+      "sortino": 3.579,
+      "calmar": 16.02,
+      "total_fees": 515.72,
+      "total_slippage": 416.54,
+      "isolation": "router"
+    }
+  }
+}

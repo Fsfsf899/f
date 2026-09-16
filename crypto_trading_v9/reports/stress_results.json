@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "data_source": "SYNTHETIC_FIXTURE_NOT_REAL_MARKET_DATA",
+    "valid_for_profitability_claims": false,
+    "note": "بيانات اختبار مولَّدة رياضياً — لا علاقة لها بأي سوق حقيقي. لا يجوز استخدام هذه الأرقام كدليل على ربحية أي إعداد."
+  },
+  "verdict": "FRAGILE_EDGE",
+  "note": "تنهار عند: slippage_2x, all_adverse",
+  "scenarios": [
+    {
+      "name": "base",
+      "trades": 92,
+      "profit_factor": 2.131,
+      "net_return_pct": 25.247,
+      "max_drawdown_pct": 3.977,
+      "expectancy": 27.4422,
+      "win_rate": 46.74,
+      "fees": 515.72,
+      "slippage": 416.54
+    },
+    {
+      "name": "costs_+25%",
+      "trades": 72,
+      "profit_factor": 1.839,
+      "net_return_pct": 16.462,
+      "max_drawdown_pct": 4.048,
+      "expectancy": 22.8641,
+      "win_rate": 44.44,
+      "fees": 494.91,
+      "slippage": 339.55
+    },
+    {
+      "name": "costs_+50%",
+      "trades": 49,
+      "profit_factor": 1.221,
+      "net_return_pct": 3.797,
+      "max_drawdown_pct": 5.172,
+      "expectancy": 7.749,
+      "win_rate": 36.73,
+      "fees": 378.2,
+      "slippage": 244.44
+    },
+    {
+      "name": "slippage_2x",
+      "trades": 44,
+      "profit_factor": 0.968,
+      "net_return_pct": -0.546,
+      "max_drawdown_pct": 7.432,
+      "expectancy": -1.2417,
+      "win_rate": 31.82,
+      "fees": 218.93,
+      "slippage": 422.74
+    },
+    {
+      "name": "spread_2x",
+      "trades": 87,
+      "profit_factor": 2.137,
+      "net_return_pct": 24.145,
+      "max_drawdown_pct": 3.991,
+      "expectancy": 27.7533,
+      "win_rate": 47.13,
+      "fees": 489.87,
+      "slippage": 450.58
+    },
+    {
+      "name": "all_adverse",
+      "trades": 15,
+      "profit_factor": 0.302,
+      "net_return_pct": -6.856,
+      "max_drawdown_pct": 7.675,
+      "expectancy": -45.7061,
+      "win_rate": 13.33,
+      "fees": 107.25,
+      "slippage": 191.41
+    }
+  ]
+}

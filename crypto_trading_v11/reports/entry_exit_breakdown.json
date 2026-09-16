@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "data_source": "SYNTHETIC_FIXTURE_NOT_REAL_MARKET_DATA",
+    "valid_for_profitability_claims": false,
+    "note": "بيانات اختبار مولَّدة رياضياً — لا علاقة لها بأي سوق حقيقي. لا يجوز استخدام هذه الأرقام كدليل على ربحية أي إعداد."
+  },
+  "total_trades": 92,
+  "signals_evaluated": 2840,
+  "signals_buy": 92,
+  "rejections_top10": {
+    "UNSUITABLE_MARKET_REGIME": 2460,
+    "SIGNAL_SCORE_TOO_LOW": 1673,
+    "RISK_REWARD_INSUFFICIENT": 826,
+    "INSUFFICIENT_HISTORY": 228,
+    "RESISTANCE_TOO_CLOSE": 90,
+    "CONSECUTIVE_LOSS_LIMIT": 7
+  },
+  "by_exit_reason": {
+    "BREAK_EVEN": {
+      "count": 24,
+      "sum_pnl": -247.1692,
+      "avg_pnl": -10.2987
+    },
+    "TAKE_PROFIT": {
+      "count": 43,
+      "sum_pnl": 4757.8765,
+      "avg_pnl": 110.6483
+    },
+    "STOP_LOSS": {
+      "count": 25,
+      "sum_pnl": -1986.0221,
+      "avg_pnl": -79.4409
+    }
+  }
+}

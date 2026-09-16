@@ -1,0 +1,13 @@
+{
+  "validation_status": "BLOCKED",
+  "edge_status": "UNKNOWN",
+  "reason": "REAL_MARKET_DATA_UNAVAILABLE",
+  "error": "HTTP 403 @ https://data-api.binance.vision: Host not in allowlist: data-api.binance.vision. Add this host to your network egress settings to allow access.",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "generated_at": "2026-09-09 06:36:08",
+  "note": "لم يُستخدم أي بديل اصطناعي — لا نتائج أداء"
+}

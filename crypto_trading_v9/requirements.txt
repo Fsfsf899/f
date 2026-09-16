@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════
+#  الاعتماديات — مُتحقَّق منها فعلياً بفحص كل import في src/
+# ═══════════════════════════════════════════════════════════
+
+# ── إلزامية لتشغيل src/ و tests/ و live_trader.py ──
+numpy>=1.24               # المؤشرات، الباكتست، إحصاءات الأداء
+scikit-learn>=1.3         # src/validation/calibration.py — Isotonic/Platt
+                           # (from sklearn.isotonic import IsotonicRegression
+                           #  from sklearn.linear_model import LogisticRegression)
+
+# ── غير مطلوبة لأي شيء نشط — موجودة فقط إن أردت تشغيل legacy/ ──
+# legacy/ مستبعد من compileall واكتشاف الاختبارات؛ لا تُثبِّت هذين
+# إلا إذا كنت تعمل تحديداً على ملفات legacy/*.py التاريخية.
+# scipy>=1.10
+# pandas>=2.0
+
+# ── اختيارية بالكامل ──
+# لا اختبار واحد في tests/ أو dashboard/tests/ يستورد pytest — كلها
+# unittest قياسي. ثبّته فقط إن كنت تفضّل تشغيله عبر `pytest` بدل
+# `python3 -m unittest discover`.
+# pytest>=7.0
+
+# ملاحظة: لا تُستخدم ccxt ولا python-binance. طبقة الشبكة مبنية على
+# urllib من المكتبة القياسية لتقليل سطح الاعتماديات في مسار التداول.

@@ -1,0 +1,546 @@
+=== تسلسل التشغيل النهائي — 2026-09-09T13:13:52Z ===
+compileall: PASS
+paper --once (BREAKOUT=0 PULLBACK=0): exit=0
+report --env paper: exit=0
+health --env paper: exit=0
+gate --env paper: exit=1 (متوقَّع — لا بيانات تشغيل حقيقية كافية)
+live-status: exit=1 (متوقَّع — Mainnet مقفول مصدرياً)
+MAINNET_ENABLED_IN_SOURCE: False (بلا مساس)
+
+=== نتيجة الاختبارات الكاملة ===
+test_unavailable_is_honest (test_all.TestBTCContext.test_unavailable_is_honest) ... ok
+test_uses_only_closed_candles (test_all.TestBTCContext.test_uses_only_closed_candles) ... ok
+test_all_trades_have_exit_reason (test_all.TestBacktest.test_all_trades_have_exit_reason) ... ok
+test_costs_reduce_return (test_all.TestBacktest.test_costs_reduce_return) ... ok
+test_determinism (test_all.TestBacktest.test_determinism) ... ok
+test_equity_curve_length (test_all.TestBacktest.test_equity_curve_length) ... ok
+test_no_position_lost_at_end (test_all.TestBacktest.test_no_position_lost_at_end)
+البند 5: أي مركز مفتوح يجب أن يظهر كصفقة مغلقة. ... ok
+test_rejections_recorded (test_all.TestBacktest.test_rejections_recorded) ... ok
+test_runs_and_reports (test_all.TestBacktest.test_runs_and_reports) ... ok
+test_trades_record_mae_mfe (test_all.TestBacktest.test_trades_record_mae_mfe) ... ok
+test_atomic_write_and_coverage (test_all.TestCache.test_atomic_write_and_coverage) ... ok
+test_improves_brier_out_of_sample (test_all.TestCalibration.test_improves_brier_out_of_sample) ... ok
+test_insufficient_sample_refused (test_all.TestCalibration.test_insufficient_sample_refused) ... ok
+test_never_outputs_certainty (test_all.TestCalibration.test_never_outputs_certainty) ... ok
+test_refuses_without_fit (test_all.TestCalibration.test_refuses_without_fit) ... ok
+test_breakeven_positive (test_all.TestCosts.test_breakeven_positive) ... ok
+test_buy_worse_than_ideal (test_all.TestCosts.test_buy_worse_than_ideal) ... ok
+test_stop_slippage_worse_than_normal (test_all.TestCosts.test_stop_slippage_worse_than_normal) ... ok
+test_clean_data_scores_high (test_all.TestDataValidation.test_clean_data_scores_high) ... ok
+test_duplicates_removed (test_all.TestDataValidation.test_duplicates_removed) ... ok
+test_invalid_ohlc_rejected (test_all.TestDataValidation.test_invalid_ohlc_rejected) ... ok
+test_length_mismatch_raises (test_all.TestDataValidation.test_length_mismatch_raises) ... ok
+test_stale_data_rejected (test_all.TestDataValidation.test_stale_data_rejected) ... ok
+test_unclosed_candle_dropped (test_all.TestDataValidation.test_unclosed_candle_dropped) ... ok
+test_gap_down_fills_at_open (test_all.TestExecution.test_gap_down_fills_at_open) ... ok
+test_no_exit (test_all.TestExecution.test_no_exit) ... ok
+test_same_candle_conservative_picks_stop (test_all.TestExecution.test_same_candle_conservative_picks_stop) ... ok
+test_same_candle_optimistic_picks_target (test_all.TestExecution.test_same_candle_optimistic_picks_target) ... ok
+test_stop_only (test_all.TestExecution.test_stop_only) ... ok
+test_target_only (test_all.TestExecution.test_target_only) ... ok
+test_uses_high_low_not_close (test_all.TestExecution.test_uses_high_low_not_close)
+الشمعة أغلقت فوق الوقف لكن قاعها اخترقه — يجب اكتشافه. ... ok
+test_annualization_documented (test_all.TestMetrics.test_annualization_documented) ... ok
+test_drawdown_nonnegative (test_all.TestMetrics.test_drawdown_nonnegative) ... ok
+test_interval_changes_factor (test_all.TestMetrics.test_interval_changes_factor) ... ok
+test_aggregation_correct (test_all.TestMultiTimeframe.test_aggregation_correct) ... ok
+test_bias_unavailable_early (test_all.TestMultiTimeframe.test_bias_unavailable_early) ... ok
+test_only_closed_htf_candles_used (test_all.TestMultiTimeframe.test_only_closed_htf_candles_used) ... ok
+test_full_decision_causal (test_all.TestNoLookAhead.test_full_decision_causal) ... ok
+test_indicators_causal (test_all.TestNoLookAhead.test_indicators_causal) ... ok
+test_mutation_preserves_past (test_all.TestNoLookAhead.test_mutation_preserves_past) ... ok
+test_support_resistance_causal (test_all.TestNoLookAhead.test_support_resistance_causal) ... ok
+test_swing_confirmation_delay (test_all.TestNoLookAhead.test_swing_confirmation_delay) ... ok
+test_allows_clean (test_all.TestNoTrade.test_allows_clean) ... ok
+test_blocks_bad_rr (test_all.TestNoTrade.test_blocks_bad_rr) ... ok
+test_blocks_close_resistance (test_all.TestNoTrade.test_blocks_close_resistance) ... ok
+test_blocks_daily_loss (test_all.TestNoTrade.test_blocks_daily_loss) ... ok
+test_blocks_dead_and_wild_volatility (test_all.TestNoTrade.test_blocks_dead_and_wild_volatility) ... ok
+test_blocks_low_quality (test_all.TestNoTrade.test_blocks_low_quality) ... ok
+test_blocks_wide_spread (test_all.TestNoTrade.test_blocks_wide_spread) ... ok
+test_reasons_recorded (test_all.TestNoTrade.test_reasons_recorded) ... ok
+test_downtrend_not_long_friendly (test_all.TestRegime.test_downtrend_not_long_friendly) ... ok
+test_thresholds_from_config (test_all.TestRegime.test_thresholds_from_config) ... ok
+test_unknown_before_warmup (test_all.TestRegime.test_unknown_before_warmup) ... ok
+test_uptrend_detected (test_all.TestRegime.test_uptrend_detected) ... ok
+test_consecutive_losses_halt (test_all.TestRisk.test_consecutive_losses_halt) ... ok
+test_daily_limit_uses_fixed_baseline (test_all.TestRisk.test_daily_limit_uses_fixed_baseline) ... ok
+test_effective_risk_exceeds_nominal (test_all.TestRisk.test_effective_risk_exceeds_nominal) ... ok
+test_invalid_stop_rejected (test_all.TestRisk.test_invalid_stop_rejected) ... ok
+test_max_positions (test_all.TestRisk.test_max_positions) ... ok
+test_notional_cap (test_all.TestRisk.test_notional_cap) ... ok
+test_size_shrinks_after_losses (test_all.TestRisk.test_size_shrinks_after_losses) ... ok
+test_confidence_drops_with_missing_evidence (test_all.TestScoring.test_confidence_drops_with_missing_evidence) ... ok
+test_confidence_is_not_probability (test_all.TestScoring.test_confidence_is_not_probability) ... ok
+test_no_modulo_wrap (test_all.TestScoring.test_no_modulo_wrap)
+الصيغة القديمة (score*2)%6 كانت تلتف — يجب ألا تتكرر. ... ok
+test_stars_monotonic (test_all.TestScoring.test_stars_monotonic) ... ok
+test_stars_range (test_all.TestScoring.test_stars_range) ... ok
+test_audit_fields_present (test_all.TestSignalIntegration.test_audit_fields_present) ... ok
+test_buy_has_complete_levels (test_all.TestSignalIntegration.test_buy_has_complete_levels) ... ok
+test_low_quality_blocks_everything (test_all.TestSignalIntegration.test_low_quality_blocks_everything) ... ok
+test_never_short (test_all.TestSignalIntegration.test_never_short) ... ok
+test_no_probability_without_calibration (test_all.TestSignalIntegration.test_no_probability_without_calibration) ... ok
+test_only_three_decisions (test_all.TestSignalIntegration.test_only_three_decisions) ... ok
+test_warmup_blocks_early (test_all.TestSignalIntegration.test_warmup_blocks_early) ... ok
+test_backtest_and_live_use_same_engine (test_all.TestSingleSourceOfTruth.test_backtest_and_live_use_same_engine)
+المحرك المستخدم في الباكتست هو SignalEngine نفسه. ... ok
+test_config_fingerprint_changes (test_all.TestSingleSourceOfTruth.test_config_fingerprint_changes) ... ok
+test_same_data_same_decision (test_all.TestSingleSourceOfTruth.test_same_data_same_decision) ... ok
+test_new_day_resets_consecutive_losses (test_entry_models.Test00_ConsecutiveLossFix.test_new_day_resets_consecutive_losses) ... ok
+test_permanent_paralysis_no_longer_occurs_across_many_days (test_entry_models.Test00_ConsecutiveLossFix.test_permanent_paralysis_no_longer_occurs_across_many_days)
+محاكاة 10 أيام متتالية — يجب ألا يبقى محظوراً للأبد. ... ok
+test_calculated_until_is_idx_minus_1 (test_entry_models.Test01_BreakoutLevel.test_calculated_until_is_idx_minus_1) ... ok
+test_current_bar_never_included_even_if_extreme (test_entry_models.Test01_BreakoutLevel.test_current_bar_never_included_even_if_extreme)
+لو كانت الشمعة idx أعلى High في التاريخ، يجب ألا تُحتسَب. ... ok
+test_excludes_current_bar (test_entry_models.Test01_BreakoutLevel.test_excludes_current_bar) ... ok
+test_insufficient_history_returns_unavailable (test_entry_models.Test01_BreakoutLevel.test_insufficient_history_returns_unavailable)
+idx=0: لا شموع سابقة إطلاقاً — الحالة الحقيقية الوحيدة لعدم ... ok
+test_short_window_still_computed_honestly (test_entry_models.Test01_BreakoutLevel.test_short_window_still_computed_honestly) ... ok
+test_breakout_model_rejects_when_disabled (test_entry_models.Test02_DisabledByDefault.test_breakout_model_rejects_when_disabled) ... ok
+test_config_defaults_are_off (test_entry_models.Test02_DisabledByDefault.test_config_defaults_are_off) ... ok
+test_pullback_model_rejects_when_disabled (test_entry_models.Test02_DisabledByDefault.test_pullback_model_rejects_when_disabled) ... ok
+test_router_only_baseline_or_no_trade_when_new_models_disabled (test_entry_models.Test02_DisabledByDefault.test_router_only_baseline_or_no_trade_when_new_models_disabled) ... ok
+test_breakout_decision_unaffected_by_future_bars (test_entry_models.Test03_NoLookahead.test_breakout_decision_unaffected_by_future_bars) ... ok
+test_pullback_decision_unaffected_by_future_bars (test_entry_models.Test03_NoLookahead.test_pullback_decision_unaffected_by_future_bars) ... ok
+test_router_deterministic (test_entry_models.Test04_Determinism.test_router_deterministic) ... ok
+test_same_inputs_same_output_breakout (test_entry_models.Test04_Determinism.test_same_inputs_same_output_breakout) ... ok
+test_breakout_wins_over_baseline_when_both_eligible (test_entry_models.Test05_Priority.test_breakout_wins_over_baseline_when_both_eligible)
+محاكاة مباشرة: نُغذّي EntryRouter مرشَّحين اصطناعيين للتحقق من الترتيب فقط. ... ok
+test_priority_order_constant (test_entry_models.Test05_Priority.test_priority_order_constant) ... ok
+test_retest_wins_over_plain_breakout (test_entry_models.Test05_Priority.test_retest_wins_over_plain_breakout) ... ok
+test_breakout_respects_kill_switch_via_account_state (test_entry_models.Test06_SharedRiskChecksNotBypassed.test_breakout_respects_kill_switch_via_account_state)
+NoTradeEngine لا يفحص kill switch مباشرة (ذلك مسؤولية طبقة ... ok
+test_breakout_respects_min_rr (test_entry_models.Test06_SharedRiskChecksNotBypassed.test_breakout_respects_min_rr) ... ok
+test_pullback_respects_min_rr (test_entry_models.Test06_SharedRiskChecksNotBypassed.test_pullback_respects_min_rr) ... ok
+test_double_call_after_entry_does_not_reenter (test_entry_models.Test07_RetestStateMachine.test_double_call_after_entry_does_not_reenter)
+استدعاء process_breakout_retest يدوياً بعد الدخول لا يُصدر إشارة ثانية. ... ok
+test_entered_setup_never_reenters (test_entry_models.Test07_RetestStateMachine.test_entered_setup_never_reenters) ... ok
+test_expiry_after_window (test_entry_models.Test07_RetestStateMachine.test_expiry_after_window) ... ok
+test_no_immediate_entry_when_retest_enabled (test_entry_models.Test07_RetestStateMachine.test_no_immediate_entry_when_retest_enabled) ... ok
+test_setup_persists_across_restart (test_entry_models.Test07_RetestStateMachine.test_setup_persists_across_restart) ... ok
+test_transitions_logged (test_entry_models.Test07_RetestStateMachine.test_transitions_logged) ... ok
+test_eligible_signal_has_positive_reason (test_entry_models.Test08_ReasonLogging.test_eligible_signal_has_positive_reason) ... ok
+test_rejected_signal_always_has_reasons (test_entry_models.Test08_ReasonLogging.test_rejected_signal_always_has_reasons) ... ok
+test_sub_scores_not_collapsed (test_entry_models.Test09_SubScores.test_sub_scores_not_collapsed) ... ok
+test_breakout_pullback_fields_change_fingerprint (test_entry_models.Test10_Versioning.test_breakout_pullback_fields_change_fingerprint) ... ok
+test_experiment_id_field_exists_and_affects_fingerprint (test_entry_models.Test10_Versioning.test_experiment_id_field_exists_and_affects_fingerprint) ... ok
+test_version_bumped (test_entry_models.Test10_Versioning.test_version_bumped) ... ok
+test_adapter_identical_to_direct_signal_engine_when_disabled (test_entry_models.Test11_RouterAdapterFidelity.test_adapter_identical_to_direct_signal_engine_when_disabled) ... ok
+test_breakout_candle_too_large_fires (test_entry_models.Test12_AlignedRejectionReasons.test_breakout_candle_too_large_fires) ... ok
+test_breakout_spread_filter (test_entry_models.Test12_AlignedRejectionReasons.test_breakout_spread_filter) ... ok
+test_breakout_stop_invalid_fires_with_extreme_atr (test_entry_models.Test12_AlignedRejectionReasons.test_breakout_stop_invalid_fires_with_extreme_atr)
+وقف ATR بمضاعف كبير جداً يتجاوز max_stop_distance_pct. ... ok
+test_pullback_expired_fires_on_real_sample (test_entry_models.Test12_AlignedRejectionReasons.test_pullback_expired_fires_on_real_sample) ... ok
+test_pullback_stop_invalid_fires_with_extreme_atr (test_entry_models.Test12_AlignedRejectionReasons.test_pullback_stop_invalid_fires_with_extreme_atr) ... ok
+test_resistance_unavailable_renamed (test_entry_models.Test12_AlignedRejectionReasons.test_resistance_unavailable_renamed)
+BREAKOUT_LEVEL_UNAVAILABLE أُعيد تسميته BREAKOUT_RESISTANCE_UNAVAILABLE. ... ok
+test_intent_unique (test_idempotency.TestDatabaseGuards.test_intent_unique) ... ok
+test_one_position_per_recommendation (test_idempotency.TestDatabaseGuards.test_one_position_per_recommendation) ... ok
+test_order_client_id_unique (test_idempotency.TestDatabaseGuards.test_order_client_id_unique) ... ok
+test_process_lock_excludes (test_idempotency.TestDatabaseGuards.test_process_lock_excludes) ... ok
+test_random_client_id_forbidden (test_idempotency.TestDatabaseGuards.test_random_client_id_forbidden) ... ok
+test_stale_lock_reclaimed (test_idempotency.TestDatabaseGuards.test_stale_lock_reclaimed) ... ok
+test_binance_constraints (test_idempotency.TestDeterministicId.test_binance_constraints) ... ok
+test_different_inputs_differ (test_idempotency.TestDeterministicId.test_different_inputs_differ) ... ok
+test_fingerprint_detects_param_change (test_idempotency.TestDeterministicId.test_fingerprint_detects_param_change) ... ok
+test_no_collisions_at_scale (test_idempotency.TestDeterministicId.test_no_collisions_at_scale) ... ok
+test_rejects_unknown_type (test_idempotency.TestDeterministicId.test_rejects_unknown_type) ... ok
+test_requires_a_reference (test_idempotency.TestDeterministicId.test_requires_a_reference) ... ok
+test_same_intent_same_id (test_idempotency.TestDeterministicId.test_same_intent_same_id) ... ok
+test_changed_params_rejected (test_idempotency.TestGate.test_changed_params_rejected) ... ok
+test_definitive_rejection_is_terminal (test_idempotency.TestGate.test_definitive_rejection_is_terminal) ... ok
+test_happy_path (test_idempotency.TestGate.test_happy_path)
+تغيير دلالي مقصود في v7: الحالة تُشتق من حالة المنصة الفعلية ... ok
+test_intent_persisted_before_send (test_idempotency.TestGate.test_intent_persisted_before_send) ... ok
+test_parallel_workers_only_one_order (test_idempotency.TestGate.test_parallel_workers_only_one_order)
+ستة عمّال متزامنين على نفس التوصية ⇒ أمر واحد ومالك واحد. ... ok
+test_pure_timeout_no_execution_marked_failed (test_idempotency.TestGate.test_pure_timeout_no_execution_marked_failed) ... ok
+test_reserved_never_sent_is_aborted (test_idempotency.TestGate.test_reserved_never_sent_is_aborted) ... ok
+test_restart_recovers_in_flight (test_idempotency.TestGate.test_restart_recovers_in_flight) ... ok
+test_retry_after_timeout_still_one_order (test_idempotency.TestGate.test_retry_after_timeout_still_one_order) ... ok
+test_second_attempt_blocked_no_network_call (test_idempotency.TestGate.test_second_attempt_blocked_no_network_call) ... ok
+test_sell_also_protected (test_idempotency.TestGate.test_sell_also_protected) ... ok
+test_stop_version_allows_intentional_replacement (test_idempotency.TestGate.test_stop_version_allows_intentional_replacement) ... ok
+test_timeout_after_execution_recovers_not_duplicates (test_idempotency.TestGate.test_timeout_after_execution_recovers_not_duplicates)
+السيناريو الأخطر: نُفّذ الأمر ثم انقطع الرد. ... ok
+test_deterministic_id (test_live_execution.Test01_Contract.test_deterministic_id) ... ok
+test_different_candle_different_id (test_live_execution.Test01_Contract.test_different_candle_different_id) ... ok
+test_frozen (test_live_execution.Test01_Contract.test_frozen) ... ok
+test_hash_matches_content (test_live_execution.Test01_Contract.test_hash_matches_content) ... ok
+test_no_constructor_from_dict (test_live_execution.Test01_Contract.test_no_constructor_from_dict)
+لا مسار لبناء TradeSignal من قاموس خارجي. ... ok
+test_tampering_breaks_hash (test_live_execution.Test01_Contract.test_tampering_breaks_hash) ... ok
+test_disallowed_symbol_blocks (test_live_execution.Test02_Validation.test_disallowed_symbol_blocks) ... ok
+test_low_data_quality_blocks (test_live_execution.Test02_Validation.test_low_data_quality_blocks) ... ok
+test_missing_stop_blocks (test_live_execution.Test02_Validation.test_missing_stop_blocks) ... ok
+test_nan_blocks (test_live_execution.Test02_Validation.test_nan_blocks) ... ok
+test_no_trade_reasons_blocks (test_live_execution.Test02_Validation.test_no_trade_reasons_blocks) ... ok
+test_short_side_blocks (test_live_execution.Test02_Validation.test_short_side_blocks) ... ok
+test_stale_signal_blocks (test_live_execution.Test02_Validation.test_stale_signal_blocks) ... ok
+test_stop_above_entry_blocks (test_live_execution.Test02_Validation.test_stop_above_entry_blocks) ... ok
+test_stop_too_far_blocks (test_live_execution.Test02_Validation.test_stop_too_far_blocks) ... ok
+test_unclosed_candle_blocks (test_live_execution.Test02_Validation.test_unclosed_candle_blocks) ... ok
+test_valid_signal_accepted (test_live_execution.Test02_Validation.test_valid_signal_accepted) ... ok
+test_wrong_environment_blocks (test_live_execution.Test02_Validation.test_wrong_environment_blocks) ... ok
+test_gate_fails_on_source_lock_regardless_of_env (test_live_execution.Test03_SourceDisabled.test_gate_fails_on_source_lock_regardless_of_env) ... ok
+test_mainnet_disabled_constant (test_live_execution.Test03_SourceDisabled.test_mainnet_disabled_constant) ... ok
+test_fingerprint_never_reveals_secret (test_live_execution.Test04_KeySeparation.test_fingerprint_never_reveals_secret) ... ok
+test_independent_keys_pass (test_live_execution.Test04_KeySeparation.test_independent_keys_pass) ... ok
+test_mainnet_key_in_paper_rejected (test_live_execution.Test04_KeySeparation.test_mainnet_key_in_paper_rejected) ... ok
+test_shared_secret_detected (test_live_execution.Test04_KeySeparation.test_shared_secret_detected) ... ok
+test_stage_keys_are_distinct_env_vars (test_live_execution.Test04_KeySeparation.test_stage_keys_are_distinct_env_vars) ... ok
+test_clock_drift_blocks (test_live_execution.Test05_ActivationGate.test_clock_drift_blocks) ... ok
+test_kill_switch_blocks (test_live_execution.Test05_ActivationGate.test_kill_switch_blocks) ... ok
+test_missing_evidence_treated_as_failure (test_live_execution.Test05_ActivationGate.test_missing_evidence_treated_as_failure)
+غياب دليل = فشل، لا نجاح ضمني. ... ok
+test_non_live_stage_never_allowed (test_live_execution.Test05_ActivationGate.test_non_live_stage_never_allowed) ... ok
+test_open_unknown_intent_blocks (test_live_execution.Test05_ActivationGate.test_open_unknown_intent_blocks) ... ok
+test_source_lock_alone_blocks_even_with_everything_else_green (test_live_execution.Test05_ActivationGate.test_source_lock_alone_blocks_even_with_everything_else_green)
+حتى مع كل شيء آخر أخضر، القفل المصدري يمنع وحده. ... ok
+test_withdrawal_permission_blocks (test_live_execution.Test05_ActivationGate.test_withdrawal_permission_blocks) ... ok
+test_audit_records_every_outcome (test_live_execution.Test06_LiveOrderManager.test_audit_records_every_outcome) ... ok
+test_disallowed_symbol_rejected_before_sizing (test_live_execution.Test06_LiveOrderManager.test_disallowed_symbol_rejected_before_sizing) ... ok
+test_gate_closed_blocks_submit_before_any_network_call (test_live_execution.Test06_LiveOrderManager.test_gate_closed_blocks_submit_before_any_network_call) ... ok
+test_sizing_respects_limits (test_live_execution.Test06_LiveOrderManager.test_sizing_respects_limits) ... ok
+test_sizing_zero_on_bad_stop (test_live_execution.Test06_LiveOrderManager.test_sizing_zero_on_bad_stop) ... ok
+test_daily_loss_limit_blocks_even_though_live_gate_has_no_such_check (test_live_execution.Test06b_PreTradeWiring.test_daily_loss_limit_blocks_even_though_live_gate_has_no_such_check)
+هذا الشرط موجود فقط داخل pre_trade() ولا نظير له في بوابة Live ... ok
+test_pre_trade_actually_invoked_and_recorded (test_live_execution.Test06b_PreTradeWiring.test_pre_trade_actually_invoked_and_recorded)
+قبل الإصلاح: pre_trade_checks كانت تبقى فارغة دائماً. ... ok
+test_sizing_rejects_when_rules_unreadable (test_live_execution.Test06b_PreTradeWiring.test_sizing_rejects_when_rules_unreadable)
+فشل قراءة قواعد المنصة يجب أن يمنع الحجم، لا أن يتابع برقم ... ok
+test_sizing_rounds_to_real_step_size (test_live_execution.Test06b_PreTradeWiring.test_sizing_rounds_to_real_step_size)
+قبل الإصلاح: qty لم تُقرَّب على step_size الفعلي إطلاقاً — أمر ... ok
+test_submit_rejects_with_pre_trade_failure_reason_when_gate_open (test_live_execution.Test06b_PreTradeWiring.test_submit_rejects_with_pre_trade_failure_reason_when_gate_open)
+محاكاة اجتياز بوابة Live بالكامل (عبر تصحيح مباشر لنتيجة ... ok
+test_empty_db_gate_fails (test_live_execution.Test07_PromotionWiring.test_empty_db_gate_fails) ... ok
+test_uses_same_module_as_cli_gate_command (test_live_execution.Test07_PromotionWiring.test_uses_same_module_as_cli_gate_command) ... ok
+test_default_health_monitor_notifier_is_noop (test_notify_and_watchdog.Test01_NoOpDefault.test_default_health_monitor_notifier_is_noop)
+HealthMonitor بلا notifier صريح يجب ألا يحاول أي اتصال شبكة. ... ok
+test_empty_notifier_never_sends (test_notify_and_watchdog.Test01_NoOpDefault.test_empty_notifier_never_sends) ... ok
+test_from_env_empty_is_noop (test_notify_and_watchdog.Test01_NoOpDefault.test_from_env_empty_is_noop) ... ok
+test_backend_failure_does_not_raise (test_notify_and_watchdog.Test02_Sending.test_backend_failure_does_not_raise)
+فشل الإرسال يُعاد كنتيجة — لا يُرفع كاستثناء أبداً. ... ok
+test_multiple_backends_all_called (test_notify_and_watchdog.Test02_Sending.test_multiple_backends_all_called) ... ok
+test_partial_failure_still_counts_as_sent (test_notify_and_watchdog.Test02_Sending.test_partial_failure_still_counts_as_sent) ... ok
+test_telegram_backend_builds_correct_request (test_notify_and_watchdog.Test02_Sending.test_telegram_backend_builds_correct_request) ... ok
+test_webhook_backend_sends_json (test_notify_and_watchdog.Test02_Sending.test_webhook_backend_sends_json) ... ok
+test_cooldown_expires (test_notify_and_watchdog.Test03_Cooldown.test_cooldown_expires) ... ok
+test_different_keys_independent (test_notify_and_watchdog.Test03_Cooldown.test_different_keys_independent) ... ok
+test_force_bypasses_cooldown (test_notify_and_watchdog.Test03_Cooldown.test_force_bypasses_cooldown) ... ok
+test_repeated_same_key_suppressed (test_notify_and_watchdog.Test03_Cooldown.test_repeated_same_key_suppressed) ... ok
+test_secret_redacted_from_body (test_notify_and_watchdog.Test04_Redaction.test_secret_redacted_from_body) ... ok
+test_custom_cooldown_from_env (test_notify_and_watchdog.Test05_FromEnv.test_custom_cooldown_from_env) ... ok
+test_partial_telegram_env_ignored (test_notify_and_watchdog.Test05_FromEnv.test_partial_telegram_env_ignored) ... ok
+test_telegram_configured_from_env (test_notify_and_watchdog.Test05_FromEnv.test_telegram_configured_from_env) ... ok
+test_forced_release_triggers_critical_notification (test_notify_and_watchdog.Test06_HealthIntegration.test_forced_release_triggers_critical_notification) ... ok
+test_kill_switch_triggers_notification (test_notify_and_watchdog.Test06_HealthIntegration.test_kill_switch_triggers_notification) ... ok
+test_notifier_failure_does_not_block_kill_switch (test_notify_and_watchdog.Test06_HealthIntegration.test_notifier_failure_does_not_block_kill_switch)
+فشل التنبيه لا يمنع تفعيل المفتاح — الأولوية لإيقاف التداول. ... ok
+test_repeated_api_failures_notify_once_due_to_cooldown (test_notify_and_watchdog.Test06_HealthIntegration.test_repeated_api_failures_notify_once_due_to_cooldown) ... ok
+test_backoff_is_exponential_and_capped (test_notify_and_watchdog.Test07_Watchdog.test_backoff_is_exponential_and_capped) ... ok
+test_build_cmd_uses_correct_python_and_script (test_notify_and_watchdog.Test07_Watchdog.test_build_cmd_uses_correct_python_and_script) ... ok
+test_clean_exit_stops_immediately (test_notify_and_watchdog.Test07_Watchdog.test_clean_exit_stops_immediately) ... ok
+test_gives_up_after_max_restarts (test_notify_and_watchdog.Test07_Watchdog.test_gives_up_after_max_restarts) ... ok
+test_max_iterations_guard_for_tests (test_notify_and_watchdog.Test07_Watchdog.test_max_iterations_guard_for_tests) ... ok
+test_notifies_on_start_restart_and_giveup (test_notify_and_watchdog.Test07_Watchdog.test_notifies_on_start_restart_and_giveup) ... ok
+test_old_restarts_pruned_outside_window (test_notify_and_watchdog.Test07_Watchdog.test_old_restarts_pruned_outside_window) ... ok
+test_restarts_on_crash (test_notify_and_watchdog.Test07_Watchdog.test_restarts_on_crash) ... ok
+test_runner_exception_treated_as_crash_not_propagated (test_notify_and_watchdog.Test07_Watchdog.test_runner_exception_treated_as_crash_not_propagated) ... ok
+test_livetrader_paper_initializes (test_paper_smoke.Test01_Init.test_livetrader_paper_initializes)
+يجب أن يُبنى LiveTrader في Paper بلا NameError ولا أي خطأ. ... ok
+test_paper_creates_database (test_paper_smoke.Test01_Init.test_paper_creates_database) ... ok
+test_paper_never_uses_mainnet (test_paper_smoke.Test01_Init.test_paper_never_uses_mainnet) ... ok
+test_paper_startup_event_is_written (test_paper_smoke.Test01_Init.test_paper_startup_event_is_written) ... ok
+test_paper_uses_paper_broker (test_paper_smoke.Test01_Init.test_paper_uses_paper_broker) ... ok
+test_paper_does_not_duplicate_order (test_paper_smoke.Test02_Tick.test_paper_does_not_duplicate_order) ... ok
+test_paper_does_not_duplicate_signal (test_paper_smoke.Test02_Tick.test_paper_does_not_duplicate_signal) ... ok
+test_paper_tick_runs_once (test_paper_smoke.Test02_Tick.test_paper_tick_runs_once)
+دورة كاملة عبر بيانات fixture — لا NameError ولا استثناء. ... ok
+test_paper_recovers_after_restart (test_paper_smoke.Test03_Restart.test_paper_recovers_after_restart) ... ok
+test_kill_switch_blocks_new_trade (test_paper_smoke.Test04_Guards.test_kill_switch_blocks_new_trade) ... ok
+test_unresolved_intent_blocks_new_trade (test_paper_smoke.Test04_Guards.test_unresolved_intent_blocks_new_trade) ... ok
+test_paper_applies_fees (test_paper_smoke.Test05_PaperMechanics.test_paper_applies_fees) ... skipped 'لا صفقة دخول في هذه العينة العشوائية — الآلية مُثبَتة مباشرة في test_v8_acceptance.py'
+test_paper_applies_slippage (test_paper_smoke.Test05_PaperMechanics.test_paper_applies_slippage) ... ok
+test_paper_oco_behavior (test_paper_smoke.Test05_PaperMechanics.test_paper_oco_behavior) ... ok
+test_paper_partial_fill (test_paper_smoke.Test05_PaperMechanics.test_paper_partial_fill) ... ok
+test_paper_timeout_recovery (test_paper_smoke.Test05_PaperMechanics.test_paper_timeout_recovery)
+Timeout بعد قبول الأمر لا يُكرِّر — مُختبَر بتفصيل حاسم في ... ok
+test_empty_is_honest (test_production.TestAccuracy.test_empty_is_honest) ... ok
+test_more_than_win_rate (test_production.TestAccuracy.test_more_than_win_rate) ... ok
+test_report_dimensions (test_production.TestAccuracy.test_report_dimensions) ... ok
+test_small_sample_flagged (test_production.TestAccuracy.test_small_sample_flagged) ... ok
+test_hmac_matches_official_vector (test_production.TestBinanceClient.test_hmac_matches_official_vector) ... ok
+test_no_simulation_in_client (test_production.TestBinanceClient.test_no_simulation_in_client) ... ok
+test_requires_keys (test_production.TestBinanceClient.test_requires_keys) ... ok
+test_step_rounding_never_rounds_up (test_production.TestBinanceClient.test_step_rounding_never_rounds_up) ... ok
+test_all_tables_created (test_production.TestDatabase.test_all_tables_created) ... ok
+test_daily_equity_idempotent (test_production.TestDatabase.test_daily_equity_idempotent) ... ok
+test_position_lifecycle (test_production.TestDatabase.test_position_lifecycle) ... ok
+test_signal_dedupe (test_production.TestDatabase.test_signal_dedupe) ... ok
+test_state_recoverable (test_production.TestDatabase.test_state_recoverable) ... ok
+test_wal_enabled (test_production.TestDatabase.test_wal_enabled) ... ok
+test_api_failures_trigger_kill (test_production.TestKillSwitch.test_api_failures_trigger_kill) ... ok
+test_daily_loss_blocks (test_production.TestKillSwitch.test_daily_loss_blocks) ... ok
+test_healthy_initially (test_production.TestKillSwitch.test_healthy_initially) ... ok
+test_order_failures_trigger_kill (test_production.TestKillSwitch.test_order_failures_trigger_kill) ... ok
+test_persists_across_restart (test_production.TestKillSwitch.test_persists_across_restart) ... ok
+test_reconciliation_blocks (test_production.TestKillSwitch.test_reconciliation_blocks) ... ok
+test_release (test_production.TestKillSwitch.test_release) ... ok
+test_all_pass (test_production.TestPreTrade.test_all_pass) ... ok
+test_any_failure_blocks (test_production.TestPreTrade.test_any_failure_blocks) ... ok
+test_result_serializable (test_production.TestReconciliation.test_result_serializable) ... ok
+test_guard_logic_present (test_production.TestStopSafety.test_guard_logic_present) ... ok
+test_stop_limit_below_stop (test_production.TestStopSafety.test_stop_limit_below_stop) ... ok
+test_loss_increments_counter (test_risk_state.Test01_BasicBehavior.test_loss_increments_counter) ... ok
+test_new_day_resets_per_documented_policy (test_risk_state.Test01_BasicBehavior.test_new_day_resets_per_documented_policy)
+السياسة الموثَّقة: consecutive_losses يُصفَّر كل يوم — لا شلل دائم. ... ok
+test_win_resets_counter (test_risk_state.Test01_BasicBehavior.test_win_resets_counter) ... ok
+test_can_trade_reflects_restored_state (test_risk_state.Test02_Persistence.test_can_trade_reflects_restored_state) ... ok
+test_no_prior_state_starts_clean (test_risk_state.Test02_Persistence.test_no_prior_state_starts_clean) ... ok
+test_restart_logs_risk_state_restored (test_risk_state.Test02_Persistence.test_restart_logs_risk_state_restored) ... ok
+test_restart_restores_state (test_risk_state.Test02_Persistence.test_restart_restores_state) ... ok
+test_state_saved_after_mutation (test_risk_state.Test02_Persistence.test_state_saved_after_mutation) ... ok
+test_different_trade_ids_both_count (test_risk_state.Test03_DuplicateFillProtection.test_different_trade_ids_both_count) ... ok
+test_duplicate_logged (test_risk_state.Test03_DuplicateFillProtection.test_duplicate_logged) ... ok
+test_no_trade_id_always_processes (test_risk_state.Test03_DuplicateFillProtection.test_no_trade_id_always_processes)
+استدعاء بلا trade_id (مثل الباكتست) — لا حماية تكرار، كالسابق. ... ok
+test_same_trade_id_ignored (test_risk_state.Test03_DuplicateFillProtection.test_same_trade_id_ignored) ... ok
+test_default_scope_is_account_wide (test_risk_state.Test04_Scope.test_default_scope_is_account_wide) ... ok
+test_per_symbol_raises_explicitly (test_risk_state.Test04_Scope.test_per_symbol_raises_explicitly) ... ok
+test_scope_mismatch_on_restore_does_not_mix_state (test_risk_state.Test04_Scope.test_scope_mismatch_on_restore_does_not_mix_state)
+نطاق مختلف محفوظ سابقاً لا يُخلَط بصمت — الحالة القديمة تُجوهَل ... ok
+test_order_manager_accepts_risk_guard (test_risk_state.Test05_ConsistencyAcrossPaperAndBacktest.test_order_manager_accepts_risk_guard) ... ok
+test_order_manager_without_risk_guard_is_noop_backward_compatible (test_risk_state.Test05_ConsistencyAcrossPaperAndBacktest.test_order_manager_without_risk_guard_is_noop_backward_compatible)
+الاستدعاء القديم بلا risk_guard يبقى يعمل بلا أي فرق. ... ok
+test_higher_costs_reduce_net_rr (test_strategy_research.Test01_NetRiskReward.test_higher_costs_reduce_net_rr) ... ok
+test_invalid_inputs_return_none (test_strategy_research.Test01_NetRiskReward.test_invalid_inputs_return_none) ... ok
+test_net_lower_than_nominal (test_strategy_research.Test01_NetRiskReward.test_net_lower_than_nominal)
+الرسوم والانزلاق تُنقِص العائد الصافي دائماً — لا يمكن أن يتفوق. ... ok
+test_tighter_stop_more_affected_by_costs (test_strategy_research.Test01_NetRiskReward.test_tighter_stop_more_affected_by_costs)
+صفقة بمسافة ضيقة تتأثر بالتكاليف نسبياً أكثر من صفقة واسعة. ... ok
+test_disabling_net_rr_falls_back_to_nominal_filter (test_strategy_research.Test02_SignalUsesNetRR.test_disabling_net_rr_falls_back_to_nominal_filter)
+use_net_risk_reward=False يعيد السلوك الاسمي القديم بالضبط. ... ok
+test_net_rr_computed_and_stored (test_strategy_research.Test02_SignalUsesNetRR.test_net_rr_computed_and_stored) ... ok
+test_atr_method_matches_pure_atr_formula (test_strategy_research.Test03_StopMethod.test_atr_method_matches_pure_atr_formula) ... ok
+test_default_is_atr_unchanged (test_strategy_research.Test03_StopMethod.test_default_is_atr_unchanged) ... ok
+test_hybrid_is_farther_of_atr_and_structure (test_strategy_research.Test03_StopMethod.test_hybrid_is_farther_of_atr_and_structure) ... ok
+test_structure_method_never_uses_future_swing (test_strategy_research.Test03_StopMethod.test_structure_method_never_uses_future_swing)
+لا استخدام لأي swing لم يُؤكَّد بعد الشمعة الحالية. ... ok
+test_atr_default_backtest_unchanged (test_strategy_research.Test04_BacktestRespectsStopMethod.test_atr_default_backtest_unchanged)
+السلوك الافتراضي (atr) يجب أن يبقى مطابقاً تماماً لما قبل التعديل. ... ok
+test_structure_method_changes_executed_stop_not_just_signal (test_strategy_research.Test04_BacktestRespectsStopMethod.test_structure_method_changes_executed_stop_not_just_signal)
+الخطأ المُصلَح: الباكتست كان يتجاهل stop_method ويعيد حساب ... ok
+test_disabled_by_default (test_strategy_research.Test05_TimeExit.test_disabled_by_default) ... ok
+test_disabled_never_produces_time_exit (test_strategy_research.Test05_TimeExit.test_disabled_never_produces_time_exit) ... ok
+test_enabled_forces_exit_after_n_bars (test_strategy_research.Test05_TimeExit.test_enabled_forces_exit_after_n_bars) ... ok
+test_time_exit_does_not_override_same_bar_stop_or_target (test_strategy_research.Test05_TimeExit.test_time_exit_does_not_override_same_bar_stop_or_target)
+إن أُصيب الوقف أو الهدف في نفس الشمعة، لا يُستبدَل بخروج زمني. ... ok
+test_disabled_by_default (test_strategy_research.Test06_TrailingStop.test_disabled_by_default) ... ok
+test_disabled_never_produces_trailing_exit (test_strategy_research.Test06_TrailingStop.test_disabled_never_produces_trailing_exit) ... ok
+test_enabled_stop_never_retreats (test_strategy_research.Test06_TrailingStop.test_enabled_stop_never_retreats)
+فحص الثبات الجوهري: نتتبّع pos.stop يدوياً عبر نسخة مبسّطة ... ok
+test_trailing_activation_threshold_respected (test_strategy_research.Test06_TrailingStop.test_trailing_activation_threshold_respected)
+قبل بلوغ trailing_activate_at_r، لا يتحرك الوقف عن نقطة التعادل. ... ok
+test_new_fields_change_fingerprint (test_strategy_research.Test07_Versioning.test_new_fields_change_fingerprint) ... ok
+test_strategy_version_bumped (test_strategy_research.Test07_Versioning.test_strategy_version_bumped) ... ok
+test_env_preflight_rejects_endpoint_mismatch (test_testnet_isolation.Test01_Endpoint.test_env_preflight_rejects_endpoint_mismatch) ... ok
+test_testnet_does_not_use_mainnet_endpoint (test_testnet_isolation.Test01_Endpoint.test_testnet_does_not_use_mainnet_endpoint) ... ok
+test_testnet_uses_testnet_endpoint (test_testnet_isolation.Test01_Endpoint.test_testnet_uses_testnet_endpoint) ... ok
+test_paper_broker_is_not_binance_client (test_testnet_isolation.Test02_PaperIsolation.test_paper_broker_is_not_binance_client) ... ok
+test_independent_keys_pass (test_testnet_isolation.Test03_KeySeparation.test_independent_keys_pass) ... ok
+test_mainnet_key_rejected_if_equals_testnet_key (test_testnet_isolation.Test03_KeySeparation.test_mainnet_key_rejected_if_equals_testnet_key)
+نفس الفحص من الاتجاه المعاكس — كلا البيئتين محميتان بالتساوي. ... ok
+test_testnet_key_rejected_if_equals_mainnet_key (test_testnet_isolation.Test03_KeySeparation.test_testnet_key_rejected_if_equals_mainnet_key) ... ok
+test_fingerprint_deterministic_same_input (test_testnet_isolation.Test04_Fingerprint.test_fingerprint_deterministic_same_input) ... ok
+test_fingerprint_different_for_different_secrets (test_testnet_isolation.Test04_Fingerprint.test_fingerprint_different_for_different_secrets) ... ok
+test_fingerprint_does_not_leak_secret (test_testnet_isolation.Test04_Fingerprint.test_fingerprint_does_not_leak_secret) ... ok
+test_check_command_ties_success_to_no_withdraw (test_testnet_isolation.Test05_WithdrawalBlock.test_check_command_ties_success_to_no_withdraw)
+فُحص أيضاً بتشغيل فعلي في IMPLEMENTATION_REPORT.md؛ هنا تحقّق ... ok
+test_missing_keys_raise_with_literal_sentinel (test_testnet_isolation.Test06_MissingKeys.test_missing_keys_raise_with_literal_sentinel) ... ok
+test_no_fallback_to_mainnet_or_paper_on_missing_keys (test_testnet_isolation.Test06_MissingKeys.test_no_fallback_to_mainnet_or_paper_on_missing_keys)
+غياب مفاتيح Testnet لا يجعل preflight يقبل endpoint آخر بصمت. ... ok
+test_retry_reuses_same_client_order_id (test_testnet_isolation.Test07_TimeoutAndDeterminism.test_retry_reuses_same_client_order_id) ... ok
+test_timeout_after_exchange_accept_no_duplicate (test_testnet_isolation.Test07_TimeoutAndDeterminism.test_timeout_after_exchange_accept_no_duplicate) ... ok
+test_intent_reserved_before_send_is_called (test_testnet_isolation.Test08_IntentBeforeNetwork.test_intent_reserved_before_send_is_called) ... ok
+test_health_gate_reflects_unresolved_intents (test_testnet_isolation.Test09_UnresolvedBlocks.test_health_gate_reflects_unresolved_intents) ... ok
+test_unresolved_unknown_intent_counted (test_testnet_isolation.Test09_UnresolvedBlocks.test_unresolved_unknown_intent_counted) ... ok
+test_reconciliation_failure_engages_relevant_state (test_testnet_isolation.Test10_ReconciliationBlocks.test_reconciliation_failure_engages_relevant_state) ... ok
+test_kill_switch_appears_in_blocking_conditions (test_testnet_isolation.Test11_KillSwitchBlocks.test_kill_switch_appears_in_blocking_conditions) ... ok
+test_live_gate_reflects_kill_switch (test_testnet_isolation.Test11_KillSwitchBlocks.test_live_gate_reflects_kill_switch) ... ok
+test_same_entry_ten_times_one_order (test_v7_reliability.Test01_DuplicateEntry.test_same_entry_ten_times_one_order) ... ok
+test_six_parallel_workers_one_order (test_v7_reliability.Test01_DuplicateEntry.test_six_parallel_workers_one_order) ... ok
+test_all_retries_use_same_id (test_v7_reliability.Test03_Timeout.test_all_retries_use_same_id) ... ok
+test_delayed_visibility_resolved (test_v7_reliability.Test03_Timeout.test_delayed_visibility_resolved) ... ok
+test_network_disconnect_after_accept (test_v7_reliability.Test03_Timeout.test_network_disconnect_after_accept) ... ok
+test_timeout_after_accept_no_second_order (test_v7_reliability.Test03_Timeout.test_timeout_after_accept_no_second_order) ... ok
+test_timeout_before_arrival_retries_same_id (test_v7_reliability.Test03_Timeout.test_timeout_before_arrival_retries_same_id) ... ok
+test_reserved_never_sent_aborted (test_v7_reliability.Test05_Restart.test_reserved_never_sent_aborted) ... ok
+test_restart_during_in_flight_recovers (test_v7_reliability.Test05_Restart.test_restart_during_in_flight_recovers) ... ok
+test_restart_during_unknown_blocks_new_trades (test_v7_reliability.Test05_Restart.test_restart_during_unknown_blocks_new_trades) ... ok
+test_different_payload_same_identity_rejected (test_v7_reliability.Test07_DatabaseGuards.test_different_payload_same_identity_rejected) ... ok
+test_duplicate_client_order_id_fails_safely (test_v7_reliability.Test07_DatabaseGuards.test_duplicate_client_order_id_fails_safely) ... ok
+test_duplicate_trade_id_not_recorded_twice (test_v7_reliability.Test07_DatabaseGuards.test_duplicate_trade_id_not_recorded_twice) ... ok
+test_null_client_order_ids_allowed_multiple (test_v7_reliability.Test07_DatabaseGuards.test_null_client_order_ids_allowed_multiple)
+الفهرس الجزئي يسمح بـ NULL متعدد. ... ok
+test_duplicate_exit_no_double_sell (test_v7_reliability.Test10_StopTargetExit.test_duplicate_exit_no_double_sell) ... ok
+test_duplicate_stop_not_placed (test_v7_reliability.Test10_StopTargetExit.test_duplicate_stop_not_placed) ... ok
+test_exit_blocked_when_stop_uncancellable (test_v7_reliability.Test10_StopTargetExit.test_exit_blocked_when_stop_uncancellable) ... ok
+test_exit_capped_by_actual_balance (test_v7_reliability.Test10_StopTargetExit.test_exit_capped_by_actual_balance) ... ok
+test_partial_fill_records_quantities (test_v7_reliability.Test10_StopTargetExit.test_partial_fill_records_quantities) ... ok
+test_stop_replacement_only_when_intentional (test_v7_reliability.Test10_StopTargetExit.test_stop_replacement_only_when_intentional) ... ok
+test_target_order_placed (test_v7_reliability.Test10_StopTargetExit.test_target_order_placed) ... ok
+test_unresolved_stop_blocks_replacement (test_v7_reliability.Test10_StopTargetExit.test_unresolved_stop_blocks_replacement) ... ok
+test_local_position_missing_on_exchange (test_v7_reliability.Test13_Reconciliation.test_local_position_missing_on_exchange) ... ok
+test_position_without_stop_flagged (test_v7_reliability.Test13_Reconciliation.test_position_without_stop_flagged) ... ok
+test_unknown_exchange_order_blocks (test_v7_reliability.Test13_Reconciliation.test_unknown_exchange_order_blocks) ... ok
+test_unresolved_intent_blocks_reconciliation (test_v7_reliability.Test13_Reconciliation.test_unresolved_intent_blocks_reconciliation) ... ok
+test_auth_error_halts_system (test_v7_reliability.Test17_Safety.test_auth_error_halts_system) ... ok
+test_mainnet_blocked_by_default (test_v7_reliability.Test17_Safety.test_mainnet_blocked_by_default) ... ok
+test_no_api_keys_in_logs (test_v7_reliability.Test17_Safety.test_no_api_keys_in_logs) ... ok
+test_no_mainnet_contact_in_tests (test_v7_reliability.Test17_Safety.test_no_mainnet_contact_in_tests) ... ok
+test_random_client_id_forbidden (test_v7_reliability.Test17_Safety.test_random_client_id_forbidden) ... ok
+test_unknown_error_never_creates_new_id (test_v7_reliability.Test17_Safety.test_unknown_error_never_creates_new_id) ... ok
+test_fingerprint_handles_nan (test_v7_reliability.Test21_Hygiene.test_fingerprint_handles_nan) ... ok
+test_invalid_numeric_inputs_rejected (test_v7_reliability.Test21_Hygiene.test_invalid_numeric_inputs_rejected)
+NaN و inf والكميات غير الموجبة تُرفض قبل أي نداء شبكة. ... ok
+test_migration_preserves_data (test_v7_reliability.Test21_Hygiene.test_migration_preserves_data) ... ok
+test_no_resource_warnings (test_v7_reliability.Test21_Hygiene.test_no_resource_warnings) ... ok
+test_no_sqlite_lock_errors_under_contention (test_v7_reliability.Test21_Hygiene.test_no_sqlite_lock_errors_under_contention) ... ok
+test_no_threads_left_behind (test_v7_reliability.Test21_Hygiene.test_no_threads_left_behind) ... ok
+test_all_allowed_transitions (test_v7_reliability.Test25_StateMachine.test_all_allowed_transitions) ... ok
+test_error_classification_never_assumes_failure (test_v7_reliability.Test25_StateMachine.test_error_classification_never_assumes_failure) ... ok
+test_illegal_transitions_rejected (test_v7_reliability.Test25_StateMachine.test_illegal_transitions_rejected) ... ok
+test_terminal_states_are_sinks (test_v7_reliability.Test25_StateMachine.test_terminal_states_are_sinks) ... ok
+test_transitions_logged_with_metadata (test_v7_reliability.Test25_StateMachine.test_transitions_logged_with_metadata) ... ok
+test_buy_worse_than_ask (test_v8_acceptance.Test01_PaperCosts.test_buy_worse_than_ask) ... ok
+test_costs_persisted_with_order (test_v8_acceptance.Test01_PaperCosts.test_costs_persisted_with_order) ... ok
+test_fees_deducted (test_v8_acceptance.Test01_PaperCosts.test_fees_deducted) ... ok
+test_no_ideal_close_price (test_v8_acceptance.Test01_PaperCosts.test_no_ideal_close_price)
+لا ينفَّذ أي أمر عند السعر المتوسط بالضبط. ... ok
+test_sell_worse_than_bid (test_v8_acceptance.Test01_PaperCosts.test_sell_worse_than_bid) ... ok
+test_cancel_unlocks (test_v8_acceptance.Test02_PaperExecution.test_cancel_unlocks) ... ok
+test_disconnect_after_accept_leaves_order (test_v8_acceptance.Test02_PaperExecution.test_disconnect_after_accept_leaves_order) ... ok
+test_faults_simulated (test_v8_acceptance.Test02_PaperExecution.test_faults_simulated) ... ok
+test_gap_down_fills_worse_than_stop (test_v8_acceptance.Test02_PaperExecution.test_gap_down_fills_worse_than_stop) ... ok
+test_locked_balance_on_stop (test_v8_acceptance.Test02_PaperExecution.test_locked_balance_on_stop) ... ok
+test_no_future_price (test_v8_acceptance.Test02_PaperExecution.test_no_future_price)
+السعر المستخدم هو الحالي فقط — لا اطلاع على المستقبل. ... ok
+test_partial_fill (test_v8_acceptance.Test02_PaperExecution.test_partial_fill) ... ok
+test_restart_restores_state (test_v8_acceptance.Test02_PaperExecution.test_restart_restores_state) ... ok
+test_oco_locks_once_for_both (test_v8_acceptance.Test02b_OCO.test_oco_locks_once_for_both) ... ok
+test_oco_stop_side_triggers (test_v8_acceptance.Test02b_OCO.test_oco_stop_side_triggers) ... ok
+test_oco_target_side_triggers (test_v8_acceptance.Test02b_OCO.test_oco_target_side_triggers) ... ok
+test_order_manager_prefers_oco (test_v8_acceptance.Test02b_OCO.test_order_manager_prefers_oco) ... ok
+test_separate_stop_then_target_impossible (test_v8_acceptance.Test02b_OCO.test_separate_stop_then_target_impossible)
+توثيق القيد: الوقف المنفصل يمنع الهدف. ... ok
+test_drawdown_bounded (test_v8_acceptance.Test02c_Drawdown.test_drawdown_bounded)
+قمة قريبة من الصفر كانت تُنتج نسباً بالتريليونات. ... ok
+test_banner_has_no_secret (test_v8_acceptance.Test03_Environments.test_banner_has_no_secret) ... ok
+test_endpoint_mismatch_halts (test_v8_acceptance.Test03_Environments.test_endpoint_mismatch_halts) ... ok
+test_fingerprint_hides_secret (test_v8_acceptance.Test03_Environments.test_fingerprint_hides_secret) ... ok
+test_live_without_permission_halts (test_v8_acceptance.Test03_Environments.test_live_without_permission_halts) ... ok
+test_missing_testnet_keys_halts (test_v8_acceptance.Test03_Environments.test_missing_testnet_keys_halts) ... ok
+test_no_silent_fallback (test_v8_acceptance.Test03_Environments.test_no_silent_fallback)
+paper لا يملك endpoint ولا مفاتيح — لا انزلاق إلى testnet. ... ok
+test_separate_databases (test_v8_acceptance.Test03_Environments.test_separate_databases) ... ok
+test_separate_locks (test_v8_acceptance.Test03_Environments.test_separate_locks) ... ok
+test_shared_secret_between_envs_halts (test_v8_acceptance.Test03_Environments.test_shared_secret_between_envs_halts) ... ok
+test_testnet_endpoint_not_mainnet (test_v8_acceptance.Test03_Environments.test_testnet_endpoint_not_mainnet) ... ok
+test_blocked_by_default (test_v8_acceptance.Test04_MainnetBlocked.test_blocked_by_default) ... ok
+test_paper_never_touches_network (test_v8_acceptance.Test04_MainnetBlocked.test_paper_never_touches_network) ... ok
+test_testnet_client_base (test_v8_acceptance.Test04_MainnetBlocked.test_testnet_client_base) ... ok
+test_paper_uses_same_signal_engine (test_v8_acceptance.Test05_SharedEngine.test_paper_uses_same_signal_engine) ... ok
+test_same_order_manager_for_paper_and_testnet (test_v8_acceptance.Test05_SharedEngine.test_same_order_manager_for_paper_and_testnet) ... ok
+test_deterministic_id_on_retry (test_v8_acceptance.Test06_IdempotencyOverPaper.test_deterministic_id_on_retry) ... ok
+test_duplicate_exit_no_double_sell (test_v8_acceptance.Test06_IdempotencyOverPaper.test_duplicate_exit_no_double_sell) ... ok
+test_duplicate_fill_not_recorded (test_v8_acceptance.Test06_IdempotencyOverPaper.test_duplicate_fill_not_recorded) ... ok
+test_timeout_after_accept_no_double (test_v8_acceptance.Test06_IdempotencyOverPaper.test_timeout_after_accept_no_double) ... ok
+test_unknown_blocks_new_trades (test_v8_acceptance.Test06_IdempotencyOverPaper.test_unknown_blocks_new_trades) ... ok
+test_force_release_logged_as_critical (test_v8_acceptance.Test07_KillSwitch.test_force_release_logged_as_critical) ... ok
+test_persists_across_restart (test_v8_acceptance.Test07_KillSwitch.test_persists_across_restart) ... ok
+test_position_without_stop_is_blocking (test_v8_acceptance.Test07_KillSwitch.test_position_without_stop_is_blocking) ... ok
+test_reconciliation_mismatch_detected (test_v8_acceptance.Test07_KillSwitch.test_reconciliation_mismatch_detected) ... ok
+test_release_after_cause_cleared (test_v8_acceptance.Test07_KillSwitch.test_release_after_cause_cleared) ... ok
+test_release_blocked_while_cause_remains (test_v8_acceptance.Test07_KillSwitch.test_release_blocked_while_cause_remains) ... ok
+test_unresolved_intent_blocks_release (test_v8_acceptance.Test07_KillSwitch.test_unresolved_intent_blocks_release) ... ok
+test_empty_gate_fails (test_v8_acceptance.Test08_HealthAndGates.test_empty_gate_fails) ... ok
+test_gate_blocks_on_unresolved (test_v8_acceptance.Test08_HealthAndGates.test_gate_blocks_on_unresolved) ... ok
+test_health_detects_failure (test_v8_acceptance.Test08_HealthAndGates.test_health_detects_failure) ... ok
+test_health_has_required_fields (test_v8_acceptance.Test08_HealthAndGates.test_health_has_required_fields) ... ok
+test_readiness_never_auto_production (test_v8_acceptance.Test08_HealthAndGates.test_readiness_never_auto_production) ... ok
+test_report_not_just_win_rate (test_v8_acceptance.Test08_HealthAndGates.test_report_not_just_win_rate) ... ok
+test_report_warns_on_small_sample (test_v8_acceptance.Test08_HealthAndGates.test_report_warns_on_small_sample) ... ok
+test_shadow_records_and_reports (test_v8_acceptance.Test08_HealthAndGates.test_shadow_records_and_reports) ... ok
+test_migration_preserves_data (test_v8_acceptance.Test09_Hygiene.test_migration_preserves_data) ... ok
+test_no_resource_warnings (test_v8_acceptance.Test09_Hygiene.test_no_resource_warnings) ... ok
+test_no_secrets_in_logs (test_v8_acceptance.Test09_Hygiene.test_no_secrets_in_logs) ... ok
+test_no_sqlite_lock_errors (test_v8_acceptance.Test09_Hygiene.test_no_sqlite_lock_errors) ... ok
+test_no_threads_left (test_v8_acceptance.Test09_Hygiene.test_no_threads_left) ... ok
+test_all_threads_are_daemon (test_v9.Test01_Concurrency.test_all_threads_are_daemon) ... ok
+test_barrier_parties_match_workers (test_v9.Test01_Concurrency.test_barrier_parties_match_workers)
+السبب الجذري للتعليق في v8: أطراف الحاجز ≠ عدد المنتظرين. ... ok
+test_cancellation_stops_workers (test_v9.Test01_Concurrency.test_cancellation_stops_workers) ... ok
+test_cleanup_runs_on_error (test_v9.Test01_Concurrency.test_cleanup_runs_on_error) ... ok
+test_finishes_within_timeout (test_v9.Test01_Concurrency.test_finishes_within_timeout) ... ok
+test_no_leaked_threads (test_v9.Test01_Concurrency.test_no_leaked_threads) ... ok
+test_runner_completes_all_workers (test_v9.Test01_Concurrency.test_runner_completes_all_workers) ... ok
+test_worker_error_captured_not_hanging (test_v9.Test01_Concurrency.test_worker_error_captured_not_hanging) ... ok
+test_cluster_exposure_blocks (test_v9.Test02_Portfolio.test_cluster_exposure_blocks) ... ok
+test_correlated_assets_clustered (test_v9.Test02_Portfolio.test_correlated_assets_clustered) ... ok
+test_insufficient_returns_no_matrix (test_v9.Test02_Portfolio.test_insufficient_returns_no_matrix) ... ok
+test_total_exposure_cap (test_v9.Test02_Portfolio.test_total_exposure_cap) ... ok
+test_uncorrelated_allowed (test_v9.Test02_Portfolio.test_uncorrelated_allowed) ... ok
+test_unknown_correlation_reported_not_assumed (test_v9.Test02_Portfolio.test_unknown_correlation_reported_not_assumed) ... ok
+test_all_scenarios_run (test_v9.Test03_Stress.test_all_scenarios_run) ... ok
+test_costs_monotonically_reduce_return (test_v9.Test03_Stress.test_costs_monotonically_reduce_return) ... ok
+test_no_edge_at_base_short_circuits (test_v9.Test03_Stress.test_no_edge_at_base_short_circuits) ... ok
+test_refuses_verdict_on_small_sample (test_v9.Test03_Stress.test_refuses_verdict_on_small_sample) ... ok
+test_block_reason_names_source (test_v9.Test04_MainnetLock.test_block_reason_names_source) ... ok
+test_disabled_in_source (test_v9.Test04_MainnetLock.test_disabled_in_source) ... ok
+test_env_var_alone_insufficient (test_v9.Test04_MainnetLock.test_env_var_alone_insufficient) ... ok
+test_live_environment_blocked (test_v9.Test04_MainnetLock.test_live_environment_blocked) ... ok
+test_testnet_unaffected (test_v9.Test04_MainnetLock.test_testnet_unaffected) ... ok
+test_different_config_different_fingerprint (test_v9.Test05_SingleEngineDeterminism.test_different_config_different_fingerprint) ... ok
+test_fixture_seed_deterministic (test_v9.Test05_SingleEngineDeterminism.test_fixture_seed_deterministic) ... ok
+test_official_engine_exported (test_v9.Test05_SingleEngineDeterminism.test_official_engine_exported) ... ok
+test_same_inputs_same_results (test_v9.Test05_SingleEngineDeterminism.test_same_inputs_same_results) ... ok
+test_insufficient_sample_flagged (test_v9.Test06_ExecutionGap.test_insufficient_sample_flagged) ... ok
+test_match_within_tolerance (test_v9.Test06_ExecutionGap.test_match_within_tolerance) ... ok
+test_mismatch_detected (test_v9.Test06_ExecutionGap.test_mismatch_detected) ... ok
+test_no_random_market_data_in_src (test_v9.Test07_SyntheticPolicy.test_no_random_market_data_in_src) ... ok
+test_real_validation_has_no_fallback (test_v9.Test07_SyntheticPolicy.test_real_validation_has_no_fallback) ... ok
+test_src_never_imports_fixtures (test_v9.Test07_SyntheticPolicy.test_src_never_imports_fixtures) ... ok
+test_livetrader_constructs_without_crash (test_v9_audit_fixes.Test01_StartupNameError.test_livetrader_constructs_without_crash)
+هذا الاختبار بالذات كان سيفشل بـ NameError قبل الإصلاح. ... ok
+test_source_uses_self_attributes_not_bare_locals (test_v9_audit_fixes.Test01_StartupNameError.test_source_uses_self_attributes_not_bare_locals) ... ok
+test_backward_compatible_default_unaffected (test_v9_audit_fixes.Test02_ReconciliationUnavailableVsMismatch.test_backward_compatible_default_unaffected)
+استدعاء بلا unavailable= يبقى بالسلوك الأصلي — كل الاستدعاءات ... ok
+test_gate_not_penalized_by_transient_unavailability (test_v9_audit_fixes.Test02_ReconciliationUnavailableVsMismatch.test_gate_not_penalized_by_transient_unavailability)
+هذا الاختبار الحاسم: نفس السيناريو الذي كسر البوابة قبل ... ok
+test_genuine_mismatch_still_logs_as_mismatch (test_v9_audit_fixes.Test02_ReconciliationUnavailableVsMismatch.test_genuine_mismatch_still_logs_as_mismatch)
+السلوك القديم يبقى كما هو للاختلاف الحقيقي — لا رجعة هنا. ... ok
+test_unavailable_does_not_log_as_mismatch (test_v9_audit_fixes.Test02_ReconciliationUnavailableVsMismatch.test_unavailable_does_not_log_as_mismatch) ... ok
+test_unavailable_severity_is_warning_not_critical (test_v9_audit_fixes.Test02_ReconciliationUnavailableVsMismatch.test_unavailable_severity_is_warning_not_critical) ... ok
+test_check_command_blocks_on_can_withdraw (test_v9_audit_fixes.Test03_HonestExitCodes.test_check_command_blocks_on_can_withdraw)
+canWithdraw=True يجب ألا يجعل testnet_ok=True — مصدرياً. ... ok
+test_check_command_source_ties_exit_to_testnet_result (test_v9_audit_fixes.Test03_HonestExitCodes.test_check_command_source_ties_exit_to_testnet_result)
+check لم يعد يُرجع 0 دائماً بغض النظر عمّا طبعه. ... ok
+test_data_unavailable_sentinel_present_in_tick_handler (test_v9_audit_fixes.Test03_HonestExitCodes.test_data_unavailable_sentinel_present_in_tick_handler) ... ok
+test_testnet_keys_missing_sentinel_is_literal (test_v9_audit_fixes.Test03_HonestExitCodes.test_testnet_keys_missing_sentinel_is_literal) ... ok
+test_no_local_database_import_shadows_module_global (test_v9_audit_fixes.Test04_RuntimeCoverageBugs.test_no_local_database_import_shadows_module_global)
+UnboundLocalError كان يكسر report/health/gate/intents/readiness ... ok
+test_recon_paper_does_not_require_binance_keys (test_v9_audit_fixes.Test04_RuntimeCoverageBugs.test_recon_paper_does_not_require_binance_keys)
+Paper لا يتصل ببينانس إطلاقاً — طلب مفاتيح API له خطأ تصميمي، ... ok
+test_recon_shadow_monitor_short_circuit_without_network (test_v9_audit_fixes.Test04_RuntimeCoverageBugs.test_recon_shadow_monitor_short_circuit_without_network) ... ok
+test_report_health_gate_intents_readiness_do_not_crash (test_v9_audit_fixes.Test04_RuntimeCoverageBugs.test_report_health_gate_intents_readiness_do_not_crash)
+اختبار حاسم: كانت هذه الأوامر الخمسة تنهار جميعاً بنفس السبب. ... ok
+test_shadow_mode_has_icon_entry (test_v9_audit_fixes.Test04_RuntimeCoverageBugs.test_shadow_mode_has_icon_entry)
+KeyError: 'shadow' كان يمنع تشغيل shadow --once بالكامل. ... ok
+
+----------------------------------------------------------------------
+Ran 468 tests in 83.786s
+
+OK (skipped=1)
