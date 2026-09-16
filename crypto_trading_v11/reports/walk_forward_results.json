@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "data_source": "SYNTHETIC_FIXTURE_NOT_REAL_MARKET_DATA",
+    "valid_for_profitability_claims": false,
+    "note": "بيانات اختبار مولَّدة رياضياً — لا علاقة لها بأي سوق حقيقي. لا يجوز استخدام هذه الأرقام كدليل على ربحية أي إعداد."
+  },
+  "oos_trades": 74,
+  "oos_aggregate_pf": 2.213,
+  "consistency": 1.0,
+  "n_windows": 5,
+  "windows": [
+    {
+      "window": 1,
+      "train_metrics": {
+        "total_trades": 20,
+        "win_rate": 30.0,
+        "profit_factor": 1.782,
+        "gross_profit_factor": null,
+        "expectancy": 17.1909,
+        "net_return_pct": 3.438,
+        "max_drawdown_pct": 3.597,
+        "sharpe": 2.723,
+        "sortino": 1.222,
+        "calmar": 6.063,
+        "total_fees": 102.93,
+        "total_slippage": 98.53
+      },
+      "oos_metrics": {
+        "total_trades": 9,
+        "win_rate": 33.33,
+        "profit_factor": 2.093,
+        "gross_profit_factor": null,
+        "expectancy": 17.3169,
+        "net_return_pct": 1.559,
+        "max_drawdown_pct": 1.356,
+        "sharpe": 3.236,
+        "sortino": 1.876,
+        "calmar": 14.374,
+        "total_fees": 45.39,
+        "total_slippage": 34.24
+      },
+      "best_params": {
+        "min_score": 5.0,
+        "atr_stop_mult": 1.5,
+        "atr_target_mult": 4.5
+      }
+    },
+    {
+      "window": 2,
+      "train_metrics": {
+        "total_trades": 13,
+        "win_rate": 38.46,
+        "profit_factor": 1.649,
+        "gross_profit_factor": null,
+        "expectancy": 15.874,
+        "net_return_pct": 2.064,
+        "max_drawdown_pct": 1.441,
+        "sharpe": 2.509,
+        "sortino": 1.061,
+        "calmar": 8.786,
+        "total_fees": 65.6,
+        "total_slippage": 52.42
+      },
+      "oos_metrics": {
+        "total_trades": 23,
+        "win_rate": 34.78,
+        "profit_factor": 1.817,
+        "gross_profit_factor": null,
+        "expectancy": 19.0037,
+        "net_return_pct": 4.371,
+        "max_drawdown_pct": 3.535,
+        "sharpe": 4.824,
+        "sortino": 3.699,
+        "calmar": 18.0,
+        "total_fees": 118.71,
+        "total_slippage": 105.3
+      },
+      "best_params": {
+        "min_score": 5.0,
+        "atr_stop_mult": 1.5,
+        "atr_target_mult": 4.5
+      }
+    },
+    {
+      "window": 3,
+      "train_metrics": {
+        "total_trades": 23,
+        "win_rate": 56.52,
+        "profit_factor": 2.472,
+        "gross_profit_factor": null,
+        "expectancy": 39.35,
+        "net_return_pct": 9.051,
+        "max_drawdown_pct": 3.721,
+        "sharpe": 5.776,
+        "sortino": 3.975,
+        "calmar": 17.687,
+        "total_fees": 122.57,
+        "total_slippage": 87.54
+      },
+      "oos_metrics": {
+        "total_trades": 19,
+        "win_rate": 57.89,
+        "profit_factor": 3.299,
+        "gross_profit_factor": null,
+        "expectancy": 56.4596,
+        "net_return_pct": 10.727,
+        "max_drawdown_pct": 2.54,
+        "sharpe": 7.911,
+        "sortino": 7.494,
+        "calmar": 87.854,
+        "total_fees": 103.76,
+        "total_slippage": 85.18
+      },
+      "best_params": {
+        "min_score": 5.0,
+        "atr_stop_mult": 2.2,
+        "atr_target_mult": 4.5
+      }
+    },
+    {
+      "window": 4,
+      "train_metrics": {
+        "total_trades": 35,
+        "win_rate": 57.14,
+        "profit_factor": 3.229,
+        "gross_profit_factor": null,
+        "expectancy": 54.9623,
+        "net_return_pct": 19.237,
+        "max_drawdown_pct": 3.616,
+        "sharpe": 8.142,
+        "sortino": 7.696,
+        "calmar": 49.568,
+        "total_fees": 195.7,
+        "total_slippage": 151.6
+      },
+      "oos_metrics": {
+        "total_trades": 13,
+        "win_rate": 38.46,
+        "profit_factor": 1.09,
+        "gross_profit_factor": null,
+        "expectancy": 2.7959,
+        "net_return_pct": 0.363,
+        "max_drawdown_pct": 2.601,
+        "sharpe": 0.423,
+        "sortino": 0.286,
+        "calmar": 1.64,
+        "total_fees": 64.54,
+        "total_slippage": 60.04
+      },
+      "best_params": {
+        "min_score": 3.0,
+        "atr_stop_mult": 2.2,
+        "atr_target_mult": 4.5
+      }
+    },
+    {
+      "window": 5,
+      "train_metrics": {
+        "total_trades": 49,
+        "win_rate": 51.02,
+        "profit_factor": 2.367,
+        "gross_profit_factor": null,
+        "expectancy": 31.5533,
+        "net_return_pct": 15.461,
+        "max_drawdown_pct": 2.663,
+        "sharpe": 6.506,
+        "sortino": 5.836,
+        "calmar": 49.35,
+        "total_fees": 269.68,
+        "total_slippage": 216.45
+      },
+      "oos_metrics": {
+        "total_trades": 10,
+        "win_rate": 60.0,
+        "profit_factor": 3.409,
+        "gross_profit_factor": null,
+        "expectancy": 35.3803,
+        "net_return_pct": 3.538,
+        "max_drawdown_pct": 1.699,
+        "sharpe": 5.886,
+        "sortino": 4.773,
+        "calmar": 28.961,
+        "total_fees": 50.8,
+        "total_slippage": 32.2
+      },
+      "best_params": {
+        "min_score": 5.0,
+        "atr_stop_mult": 1.8,
+        "atr_target_mult": 3.6
+      }
+    }
+  ]
+}
