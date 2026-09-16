@@ -33,6 +33,9 @@ class Window:
     train_metrics: Dict = field(default_factory=dict)
     test_metrics: Dict = field(default_factory=dict)
     n_candidates: int = 0
+    # سجل المراحل: أي مسارات بُحثت، بكم مرشَّحاً، وهل حسّنت الهدف.
+    # يُميِّز صراحةً بين «بُحثت ولم تُفِد» و«لم تُبحَث».
+    search_stages: List[Dict] = field(default_factory=list)
 
     def overlaps(self) -> bool:
         """يجب أن يكون False دائماً — تداخل = تسريب."""
@@ -98,6 +101,60 @@ def _grid(grid: Dict[str, List]) -> List[Dict]:
     return out
 
 
+
+def resolve_search(base_cfg: Config,
+                   grid: Optional[Dict[str, List]] = None,
+                   engine_factory: Optional[Callable] = None,
+                   extend_for_entry_models: bool = True):
+    """
+    يبني شبكة البحث والمحرك المناسبين لـ `base_cfg` — الفجوة التي
+    وثّقها `ENTRY_MODEL_VALIDATION_REPORT.md` صراحةً:
+
+        «Walk-Forward الحالي لا يبحث فعلياً في معاملات
+         Breakout/Pullback الخاصة — فجوة معمارية موثَّقة، لا مخفية.»
+
+    كانت `BREAKOUT_GRID` و`PULLBACK_GRID` **مُعرَّفتين بلا أي استخدام**:
+    `run()` تفعل `grid = grid or DEFAULT_GRID` فلا تصلهما أبداً. والأسوأ
+    أن المحرك الافتراضي `SignalEngine` **لا يقرأ إعدادات breakout/
+    pullback إطلاقاً**، فحتى تمرير الشبكة يدوياً كان يقيس Baseline.
+
+    الإصلاح شقّان:
+      1. الشبكة تُوسَّع تلقائياً بحسب ما هو مُفعَّل في `base_cfg`.
+      2. المحرك يصير `RouterAsSignalEngine` — وهو **نفس الغلاف الذي
+         يستخدمه `live_trader.py` حصراً**. فيقيس Walk-Forward ما يعمل
+         في الإنتاج، لا مكوّناً آخر.
+
+    يُرجع `(stages, factory)`؛ `stages` قائمة شبكات تُبحَث **بالتتابع**
+    لا بالضرب الديكارتي — انظر `run()` للمبرّر.
+    """
+    stages: List[Dict[str, List]] = [dict(grid or DEFAULT_GRID)]
+    bo = bool(getattr(base_cfg.breakout, 'enabled', False))
+    pb = bool(getattr(base_cfg.pullback, 'enabled', False))
+
+    if extend_for_entry_models and grid is None:
+        if bo:
+            stages.append(dict(BREAKOUT_GRID))
+        if pb:
+            stages.append(dict(PULLBACK_GRID))
+
+    factory = engine_factory
+    if factory is None:
+        if bo or pb:
+            from ..research.router_adapter import RouterAsSignalEngine
+            factory = lambda c: RouterAsSignalEngine(c)   # noqa: E731
+        else:
+            factory = lambda c: SignalEngine(c)           # noqa: E731
+    return stages, factory
+
+
+def _merge_stages(stages: List[Dict[str, List]]) -> Dict[str, List]:
+    """يدمج كل المراحل في شبكة واحدة — للبحث الديكارتي الكامل."""
+    out: Dict[str, List] = {}
+    for st in stages:
+        out.update(st)
+    return out
+
+
 def _objective(m: Dict, min_trades: int = 5) -> float:
     """
     دالة الهدف للتحسين داخل TRAIN فقط.
@@ -120,7 +177,9 @@ def run(data: OHLCV, base_cfg: Optional[Config] = None,
         data_quality: float = 0.95,
         optimize: bool = True,
         verbose: bool = True,
-        engine_factory: Optional[Callable[[Config], Any]] = None) -> Dict:
+        engine_factory: Optional[Callable[[Config], Any]] = None,
+        extend_for_entry_models: bool = True,
+        search_mode: str = 'staged') -> Dict:
     """
     `engine_factory(cfg) -> engine` — يبني الكائن الذي يُمرَّر إلى
     `BacktestEngine`. الافتراضي `SignalEngine(cfg)` (Baseline، توافق
@@ -136,9 +195,11 @@ def run(data: OHLCV, base_cfg: Optional[Config] = None,
     """
     base_cfg = base_cfg or Config()
     vc = val_cfg or ValidationConfig()
-    grid = grid or DEFAULT_GRID
-    combos = _grid(grid) if optimize else [{}]
-    factory = engine_factory or (lambda c: SignalEngine(c))
+    stages, factory = resolve_search(base_cfg, grid, engine_factory,
+                                     extend_for_entry_models)
+    if not optimize:
+        stages = [{}]
+    grid = {k: v for st in stages for k, v in st.items()}
 
     n = len(data)
     tr, te, st = vc.wf_train_bars, vc.wf_test_bars, vc.wf_step_bars
@@ -157,14 +218,48 @@ def run(data: OHLCV, base_cfg: Optional[Config] = None,
         te_from = max(0, w.test_start - warm)
         test = data.slice(te_from, w.test_end + 1)
 
+        # ── بحث مرحلي (coordinate descent) لا ضرب ديكارتي.
+        # المبرّر: الشبكة الأساسية 27 تركيبة، وbreakout 9، وpullback 9.
+        # الضرب الكامل = 2187 تركيبة لكل نافذة — ~80 ضعف الكلفة، وهو
+        # ما يجعل البحث غير عملي فيبقى معطَّلاً كما كان.
+        #
+        # ⚠️ **حدّ صريح**: البحث المرحلي جشع — يُثبّت أفضل مجموعة من
+        # مرحلة قبل الانتقال للتالية، فقد يفوته تفاعل بين معامل أساسي
+        # ومعامل نموذج دخول. يُوثَّق ولا يُخفى. من أراد البحث الكامل
+        # يُمرِّر `search_mode='product'` صراحةً ويتحمّل الكلفة.
         best, best_obj, best_m = {}, -np.inf, {}
-        for params in combos:
-            cfg = _apply(base_cfg, params)   # يرفع خطأ فوراً إن كان مساراً غير صحيح
-            bt = BacktestEngine(cfg, factory(cfg), capital)
-            m = bt.run(train, data_quality=data_quality).metrics
-            ob = _objective(m)
-            if ob > best_obj:
-                best, best_obj, best_m = params, ob, m
+        stage_list = ([_merge_stages(stages)] if search_mode == 'product'
+                      else stages)
+        stage_log: List[Dict] = []
+        n_evaluated = 0
+        for si, stage in enumerate(stage_list):
+            combos = _grid(stage) if optimize else [{}]
+            # ⚠️ أفضل مرشَّح في هذه المرحلة يُثبَّت **دائماً**، ولو لم
+            # يتفوّق على المرحلة السابقة. الاشتراط الصارم (`>`) كان
+            # يترك `best_params` بلا أي مفتاح breakout/pullback حين لا
+            # تُحسِّن هذه المعاملات — فيستحيل التمييز بين «بُحثت ولم
+            # تُفِد» و«لم تُبحَث إطلاقاً». وهذا بالضبط الالتباس الذي
+            # أبقى الفجوة مخفيّة طوال الوقت.
+            stage_best, stage_obj, stage_m = None, -np.inf, {}
+            for params in combos:
+                trial = dict(best, **params)   # المُثبَّت + مرشَّح هذه المرحلة
+                cfg = _apply(base_cfg, trial)  # يرفع خطأ فوراً عند مسار خاطئ
+                bt = BacktestEngine(cfg, factory(cfg), capital)
+                m = bt.run(train, data_quality=data_quality).metrics
+                ob = _objective(m)
+                n_evaluated += 1
+                if ob > stage_obj:
+                    stage_best, stage_obj, stage_m = trial, ob, m
+            improved = stage_best is not None and stage_obj > best_obj
+            stage_log.append({
+                'stage': si, 'paths': sorted(stage),
+                'candidates': len(combos),
+                'improved': bool(improved),
+                'objective': (None if stage_obj == -np.inf
+                              else round(float(stage_obj), 6))})
+            if stage_best is not None:
+                best, best_m = stage_best, stage_m
+                best_obj = max(best_obj, stage_obj)
 
         # ── المعاملات مجمّدة الآن. اختبار OOS.
         cfg = _apply(base_cfg, best)
@@ -172,9 +267,11 @@ def run(data: OHLCV, base_cfg: Optional[Config] = None,
         res = bt.run(test, data_quality=data_quality)
 
         w.best_params = best
+        w.search_stages = stage_log
+        w.n_candidates = n_evaluated
         w.train_metrics = best_m
         w.test_metrics = res.metrics
-        w.n_candidates = len(combos)
+        # (أُزيل: كان يدهس العدّاد الحقيقي بحجم آخر مرحلة فقط)
         windows.append(w)
 
         if verbose:
