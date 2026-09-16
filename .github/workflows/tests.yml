@@ -1,10 +1,20 @@
-# يشغّل المجموعات الثلاث لكل مشروع: المحرك (unittest)، لوحة المتابعة
-# (unittest + Flask)، وواجهة اللوحة (node، بلا اعتماديات خارجية).
+# يشغّل المجموعات الثلاث لـ crypto_trading_v11: المحرك (unittest)،
+# لوحة المتابعة (unittest + Flask)، وواجهة اللوحة (node، بلا اعتماديات).
+#
+# crypto_trading_v9 نسخة سابقة محفوظة للرجوع، ولا تُفحص آلياً بطلب
+# صريح. لإعادة إدراجها: أضِف `strategy.matrix.project` بالمشروعين
+# واستبدل `crypto_trading_v11` الحرفية أدناه بـ `${{ matrix.project }}`
+# (في name و working-directory و cache-dependency-path).
 name: tests
 
 on:
+  # push مقصور على main عمداً: تركه على كل الفروع كان يُشغّل نفس
+  # الكود مرّتين (مرّة لـ push ومرّة لـ pull_request)، و`concurrency`
+  # لا يمنع ذلك لأن github.ref يختلف بين المُحفِّزين
+  # (refs/heads/… مقابل refs/pull/N/merge) فيقعان في مجموعتين.
+  # الآن: الـ PR تشغيل واحد، و main تشغيل واحد بعد الدمج.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -12,22 +22,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: tests-${{ github.ref }}
+  group: tests-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    name: ${{ matrix.project }}
+    name: crypto_trading_v11
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        project: [crypto_trading_v9, crypto_trading_v11]
 
     defaults:
       run:
-        working-directory: ${{ matrix.project }}
+        working-directory: crypto_trading_v11
 
     steps:
       - uses: actions/checkout@v4
@@ -37,8 +43,8 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: |
-            ${{ matrix.project }}/requirements.txt
-            ${{ matrix.project }}/dashboard/requirements.txt
+            crypto_trading_v11/requirements.txt
+            crypto_trading_v11/dashboard/requirements.txt
 
       - uses: actions/setup-node@v4
         with:
