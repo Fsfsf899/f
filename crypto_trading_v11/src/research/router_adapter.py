@@ -67,6 +67,7 @@ class RouterAsSignalEngine:
             data_quality=data_quality,
             btc_context=(context['btc_ctx'].risk_level
                         if context.get('btc_ctx') is not None else 'UNKNOWN'),
+            setup_type=es.setup_type or BASELINE,
             evidence=list(es.reasons), reasons=list(es.rejection_reasons))
 
 
@@ -134,4 +135,5 @@ class IsolatedModelAdapter:
             data_quality=data_quality,
             btc_context=(context['btc_ctx'].risk_level
                         if context.get('btc_ctx') is not None else 'UNKNOWN'),
+            setup_type=es.setup_type or BASELINE,
             evidence=list(es.reasons), reasons=list(es.rejection_reasons))

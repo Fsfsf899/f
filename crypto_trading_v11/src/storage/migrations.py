@@ -15,7 +15,7 @@ import sqlite3
 import time
 from typing import List, Tuple, Callable
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def _cols(conn, table: str) -> List[str]:
@@ -212,9 +212,24 @@ def migrate_v5_to_v6(conn):
         "CREATE INDEX IF NOT EXISTS ix_sizing_symbol ON sizing_plans(symbol)")
 
 
+def migrate_v6_to_v7(conn):
+    """
+    v7: عمود `setup_type` في `signals` — أي نموذج دخول أنتج الإشارة.
+
+    كان `Signal` بلا هذا الحقل إطلاقاً، فالمسار الحيّ لا يستطيع
+    الإجابة عن «أي نموذج أنتج هذه الصفقة؟». والأسوأ أن أي قياس يقرأ
+    `getattr(sig, 'setup_type', 'baseline')` كان يُرجع baseline لكل شيء
+    بصمت — فتبدو النماذج الأخرى معطَّلة وهي تعمل (قياس فعلي: 3 إشارات
+    BREAKOUT و43 PULLBACK ظهرت كلها BASELINE).
+
+    إضافة عمود فقط — لا تعديل على بيانات قائمة.
+    """
+    _add_col(conn, 'signals', 'setup_type', 'TEXT')
+
+
 MIGRATIONS: List[Tuple[int, Callable]] = [
     (2, migrate_v1_to_v2), (3, migrate_v2_to_v3), (4, migrate_v3_to_v4),
-    (5, migrate_v4_to_v5), (6, migrate_v5_to_v6)]
+    (5, migrate_v4_to_v5), (6, migrate_v5_to_v6), (7, migrate_v6_to_v7)]
 
 
 def current_version(path: str) -> int:

@@ -30,7 +30,7 @@ class DatabaseUnavailable(Exception):
     """القاعدة غير متاحة — تُعرض كحالة، لا تُخفى."""
 
 
-EXPECTED_SCHEMA_VERSION = 6
+EXPECTED_SCHEMA_VERSION = 7
 MAX_ROWS = 5000
 QUERY_TIMEOUT_MS = 4000
 

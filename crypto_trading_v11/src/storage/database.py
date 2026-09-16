@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS signals (
   raw_probability REAL, calibrated_probability REAL, probability_source TEXT,
   entry REAL, stop_loss REAL, take_profit REAL, risk_reward REAL, atr REAL,
   market_regime TEXT, data_quality REAL, btc_context TEXT,
-  evidence TEXT, reasons TEXT,
+  setup_type TEXT, evidence TEXT, reasons TEXT,
   UNIQUE(symbol, interval, bar_time, strategy_version)
 );
 CREATE INDEX IF NOT EXISTS ix_sig_sym ON signals(symbol, ts);
@@ -311,6 +311,10 @@ class Database:
             'entry': sig.get('entry'), 'stop_loss': sig.get('stop_loss'),
             'take_profit': sig.get('take_profit'),
             'risk_reward': sig.get('risk_reward'), 'atr': sig.get('atr'),
+            # أي نموذج دخول أنتج الإشارة — بلا هذا العمود يستحيل لاحقاً
+            # الإجابة عن «هل يستحق breakout/pullback البقاء؟» من بيانات
+            # تشغيل حقيقية بدل التخمين.
+            'setup_type': sig.get('setup_type'),
             'market_regime': sig.get('regime'),
             'data_quality': sig.get('data_quality'),
             'btc_context': sig.get('btc_context'),

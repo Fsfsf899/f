@@ -45,6 +45,13 @@ class Signal:
     risk_reward: Optional[float] = None
     net_risk_reward: Optional[float] = None
     stop_method_used: str = 'atr'
+    # أي نموذج دخول أنتج هذه الإشارة فعلياً — BASELINE/BREAKOUT/
+    # BREAKOUT_RETEST/PULLBACK. كان الحقل غائباً تماماً، فالمسار الحيّ
+    # لا يستطيع الإجابة عن «أي نموذج أنتج هذه الصفقة؟» — والأسوأ أن
+    # أي قياس يعتمد على `getattr(sig, 'setup_type', 'baseline')` كان
+    # يُرجع baseline لكل شيء بصمت، فيبدو أن النماذج الأخرى لا تعمل
+    # إطلاقاً وهي تعمل. شرط لأي معايرة أو مقارنة لاحقة.
+    setup_type: str = 'BASELINE'
     atr: Optional[float] = None
     regime: str = 'UNKNOWN'
     data_quality: float = 0.0
