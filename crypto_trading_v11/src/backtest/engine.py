@@ -19,6 +19,7 @@ from ..signals.engine import SignalEngine, BUY
 from ..risk.position_sizing import PositionSizer
 from ..risk.risk_guard import RiskGuard
 from .costs import CostModel
+from ..account.providers import SimulatedAccountProvider
 from .execution import (Bar, resolve_long_exit, STOP_LOSS, TAKE_PROFIT,
                         TRAILING_STOP, BREAK_EVEN, SIGNAL_EXIT, TIME_EXIT,
                         BACKTEST_END)
@@ -71,6 +72,7 @@ class BacktestEngine:
         self.engine = signal_engine or SignalEngine(self.cfg)
         self.costs = CostModel(self.cfg.costs)
         self.sizer = PositionSizer(self.cfg.risk, self.costs)
+        self.account = SimulatedAccountProvider(self.cfg.risk)
         self.initial = initial_capital
 
     def run(self, data: OHLCV, *, data_quality: float = 1.0,
@@ -104,11 +106,17 @@ class BacktestEngine:
                 atr_v = sig['atr']
                 stop_dist = sig['stop_dist']
                 target_dist = sig['target_dist']
+                # القسم 23: نفس مسار التحجيم الحيّ بالضبط، بحساب محاكى
+                # بدل رصيد منصة. بلا هذا كان الباكتست يفتح مراكز أكبر
+                # بـ 11.1% (الاحتياطي النقدي غير مُطبَّق) فيُبالغ في
+                # العوائد بلا سبب استراتيجي.
+                acct = self.account.snapshot(available=cash)
                 sized = self.sizer.calculate(
                     equity=cash, entry=bar.open,
                     stop=bar.open - stop_dist,
                     stars=sig['stars'],
-                    consecutive_losses=guard.consecutive_losses)
+                    consecutive_losses=guard.consecutive_losses,
+                    account=acct, fee_rate=cfg.costs.taker_fee)
                 if sized['qty'] > 0 and sized['notional'] <= cash:
                     vol_mult = max(atr_v / max(bar.open, 1e-9) * 100 / 1.0, 0.5)
                     fill = self.costs.buy(bar.open, sized['qty'], vol_mult)

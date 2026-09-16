@@ -213,3 +213,38 @@ class ExchangeAccountProvider(BaseAccountProvider):
             except Exception:
                 pass
         return total
+
+
+class SimulatedAccountProvider(BaseAccountProvider):
+    """
+    حساب محاكى للباكتست (القسم 23): «Backtest must use the same signal
+    and PositionSizer logic as Live, with a simulated account provider
+    rather than real exchange balance».
+
+    ⚠️ سبب وجوده: قبله كان الباكتست ينادي `PositionSizer` **بلا** لقطة
+    حساب، فيسلك المسار القديم — بلا احتياطي نقدي، وبلا قيود المنصة،
+    وبلا إعادة حساب المخاطرة بعد التقريب. بينما صار المسار الحيّ يمرّ
+    باللقطة. النتيجة قياساً: الباكتست يفتح مراكز **أكبر بـ 11.1%** من
+    التنفيذ الحيّ لنفس الإشارة بالضبط، فيُبالغ في العوائد بلا سبب
+    استراتيجي — نفس صنف الانحراف الذي وُجد سابقاً في معادلة الرسوم.
+
+    لا شبكة ولا حالة داخلية: يُبنى من النقد المُمرَّر عند كل نداء.
+    """
+
+    source = 'backtest'
+
+    def snapshot(self, symbols=None, *, available: float = 0.0,
+                 locked: float = 0.0, position_value: float = 0.0
+                 ) -> AccountSnapshot:
+        snap = AccountSnapshot(quote_asset=self.quote_asset, source=self.source)
+        snap.available_balance = max(0.0, float(available))
+        snap.locked_balance = max(0.0, float(locked))
+        snap.total_balance = snap.available_balance + snap.locked_balance
+        snap.position_value = max(0.0, float(position_value))
+        snap.assets = {self.quote_asset: {'free': snap.available_balance,
+                                          'locked': snap.locked_balance}}
+        # محاكاة تاريخية: اللقطة آنيّة بحكم التعريف، فلا معنى لفحص
+        # الطزاجة عليها — لكن الاحتياطي يُطبَّق كما في الحيّ تماماً.
+        snap.taken_ms = int(time.time() * 1000)
+        snap.status = OK
+        return self._finalize(snap)
