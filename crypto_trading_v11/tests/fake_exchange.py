@@ -26,8 +26,23 @@ RULES = {'symbol': 'BTCUSDT', 'status': 'TRADING', 'spot': True,
 
 
 class FakeExchange:
+    """
+    ⚠️ `fee_rate` أُضيف بعد تدقيق ما بعد V11: كانت هذه المنصة تُرجع
+    `commission: '0.0'` دائماً، فلم يكن بإمكان **أي** اختبار في المشروع
+    أن يرى خطأ رسوم — وهذا بالضبط ما أخفى استبعاد رسم الدخول من PnL
+    المحقَّق طوال الوقت. الافتراضي يبقى 0.0 عمداً كي لا تتغيَّر توقّعات
+    الاختبارات القائمة، لكن اختبارات الرسوم المخصَّصة تُفعِّله بقيمة
+    حقيقية (0.001) وتفحص الأصلين معاً.
+
+    عند تفعيله يُحاكي سلوك بينانس الحقيقي لا المبسَّط: عمولة **الشراء
+    تُخصَم من الأصل الأساس** (BTC) وعمولة **البيع من العملة المقابلة**
+    (USDT). هذا الفرق تحديداً هو ما كان يجعل رقماً بالبيتكوين يُطرَح
+    كأنه دولارات.
+    """
+
     def __init__(self, price: float = 50000.0, base_free: float = 0.0,
-                 quote_free: float = 10000.0):
+                 quote_free: float = 10000.0, fee_rate: float = 0.0,
+                 fee_asset: Optional[str] = None):
         self.orders: Dict[str, Dict] = {}
         self.calls = 0
         self.send_calls = 0
@@ -42,6 +57,8 @@ class FakeExchange:
         self._id = 1
         self._lock = threading.Lock()
         self.mainnet_contacted = False
+        self.fee_rate = fee_rate
+        self.fee_asset = fee_asset   # None = سلوك بينانس (أساس للشراء، مقابلة للبيع)
 
     # ── التحكم ──
     def fail(self, mode: str, times: int = 1):
@@ -95,9 +112,25 @@ class FakeExchange:
             'cummulativeQuoteQty': f'{executed * px:.8f}',
             'price': f'{px:.2f}',
             'fills': ([{'qty': f'{executed:.8f}', 'price': f'{px:.2f}',
-                        'commission': '0.0', 'commissionAsset': 'USDT',
+                        'commission': self._commission(side, executed, px),
+                        'commissionAsset': self._commission_asset(side),
                         'tradeId': f'tr-{cid}'}] if executed > 0 and
                       otype == 'MARKET' else [])}
+
+    def _commission_asset(self, side: str) -> str:
+        if self.fee_asset:
+            return self.fee_asset
+        # بينانس: عمولة الشراء بالأصل الأساس، وعمولة البيع بالمقابلة
+        return RULES['base'] if side == 'BUY' else RULES['quote']
+
+    def _commission(self, side: str, executed: float, px: float) -> str:
+        if self.fee_rate <= 0:
+            return '0.0'
+        asset = self._commission_asset(side)
+        # العمولة نسبة من الكمية المستلمة بعملتها هي
+        amount = (executed * self.fee_rate if asset == RULES['base']
+                  else executed * px * self.fee_rate)
+        return f'{amount:.10f}'
 
     # ── واجهة العميل ──
     def sync_time(self): return 0

@@ -58,21 +58,60 @@ class OrderManager:
 
     # ═══ توحيد قراءة الردود ═══
     @staticmethod
-    def normalize_response(resp: Dict, fallback_price: float = 0.0) -> Dict:
+    def normalize_response(resp: Dict, fallback_price: float = 0.0, *,
+                           base_asset: Optional[str] = None,
+                           quote_asset: Optional[str] = None) -> Dict:
         """
-        يوحّد رد المنصة إلى {qty, avg_price, fee, fills}.
+        يوحّد رد المنصة إلى
+        {qty, avg_price, fee, fee_by_asset, fee_uncertain, fills}.
 
         الردود المسترجَعة عبر origClientOrderId **لا تحوي fills** — كانت
         تُقرأ بسعر 0.0 فتُنتج PnL كارثياً وهمياً في التقارير. هنا يُشتق
         المتوسط من cummulativeQuoteQty ÷ executedQty.
+
+        ⚠️ `fee` **مُقوَّم بالعملة المقابلة دائماً** (USDT عادةً) — إصلاح
+        تدقيق ما بعد V11. كان الحساب يجمع `commission` من كل fill بلا أي
+        نظر إلى `commissionAsset`، وبينانس تخصم عمولة **الشراء من الأصل
+        الأساس** افتراضياً (BTC في BTCUSDT) لا من العملة المقابلة. فكان
+        رقم بالبيتكوين يُجمَع ويُطرَح لاحقاً كأنه دولارات. الوسيط الورقي
+        يخصم دائماً من العملة المقابلة، فالانحراف يظهر على المنصة
+        الحقيقية وحدها ولا يكشفه أي اختبار.
+
+        عمولة بأصل ثالث (BNB مثلاً عند تفعيل الخصم) **لا تُحوَّل تخميناً**
+        ولا تُطرَح كأنها دولارات: تُستبعَد من `fee` ويُرفع
+        `fee_uncertain=True` ليُسجِّلها المستدعي صراحةً. القيمة الخام لكل
+        أصل محفوظة في `fee_by_asset` فلا يضيع شيء.
         """
         fills = resp.get('fills') or []
         if fills:
             qty = sum(float(f['qty']) for f in fills)
             avg = (sum(float(f['price']) * float(f['qty']) for f in fills) / qty
                    if qty > 0 else fallback_price)
-            fee = sum(float(f.get('commission', 0) or 0) for f in fills)
-            return {'qty': qty, 'avg_price': avg, 'fee': fee, 'fills': fills}
+            fee = 0.0
+            fee_by_asset: Dict[str, float] = {}
+            uncertain = False
+            for f in fills:
+                c = float(f.get('commission', 0) or 0)
+                if c <= 0:
+                    continue
+                asset = (f.get('commissionAsset') or '').upper()
+                fee_by_asset[asset] = fee_by_asset.get(asset, 0.0) + c
+                if quote_asset and asset == quote_asset.upper():
+                    fee += c                      # بالعملة المقابلة أصلاً
+                elif base_asset and asset == base_asset.upper():
+                    px = float(f.get('price', 0) or 0) or avg or fallback_price
+                    if px > 0:
+                        fee += c * px             # تحويل بسعر التنفيذ نفسه
+                    else:
+                        uncertain = True
+                elif not base_asset and not quote_asset:
+                    # لا معلومات رموز — السلوك القديم (يُفترَض المقابلة)
+                    fee += c
+                else:
+                    uncertain = True              # أصل ثالث: لا تخمين
+            return {'qty': qty, 'avg_price': avg, 'fee': fee,
+                    'fee_by_asset': fee_by_asset, 'fee_uncertain': uncertain,
+                    'fills': fills}
 
         qty = float(resp.get('executedQty', 0) or 0)
         quote = float(resp.get('cummulativeQuoteQty', 0) or 0)
@@ -82,7 +121,18 @@ class OrderManager:
             avg = float(resp.get('price', 0) or 0) or fallback_price
         else:
             avg = 0.0
-        return {'qty': qty, 'avg_price': avg, 'fee': 0.0, 'fills': []}
+        return {'qty': qty, 'avg_price': avg, 'fee': 0.0,
+                'fee_by_asset': {}, 'fee_uncertain': False, 'fills': []}
+
+    def _symbol_assets(self, symbol: str):
+        """(base, quote) من قواعد الرمز المُخزَّنة مؤقتاً — بلا نداء شبكة
+        إضافي (`rules()` تُخزِّن داخلياً). عند التعذّر: (None, None)،
+        و`normalize_response` تعود عندها للسلوك القديم بلا انهيار."""
+        try:
+            r = self.client.rules(symbol)
+            return r.get('base'), r.get('quote')
+        except Exception:
+            return None, None
 
     # ═══ سلسلة الفحوص قبل الأمر ═══
     def pre_trade(self, *, symbol: str, notional: float, entry: float,
@@ -218,9 +268,16 @@ class OrderManager:
                                     'price': (quote / q) if q > 0 else entry_ref,
                                     'commission': 0}])
 
-        norm = self.normalize_response(r, fallback_price=entry_ref)
+        _b, _q = self._symbol_assets(symbol)
+        norm = self.normalize_response(r, fallback_price=entry_ref,
+                                       base_asset=_b, quote_asset=_q)
         qty, avg, fee = norm['qty'], norm['avg_price'], norm['fee']
         fills = norm['fills']
+        if norm.get('fee_uncertain'):
+            self.db.risk_event(
+                'FEE_ASSET_UNCONVERTIBLE', 'WARNING',
+                f"{symbol} دخول: عمولة بأصل ثالث {norm.get('fee_by_asset')} — "
+                f"مستبعَدة من التكلفة، لا تُخمَّن", symbol)
         if qty <= 0:
             self.db.risk_event('ORDER_NOT_FILLED', 'HIGH', f"{symbol}", symbol)
             return None
@@ -455,12 +512,58 @@ class OrderManager:
                 actions.append({'position': pos_id,
                                 'action': 'STOP_REPLACED' if sid else 'STOP_REPLACE_FAILED'})
                 if sid is None:
+                    # ⚠️ إصلاح (تدقيق ما بعد V11): كان يُسجَّل حدث CRITICAL
+                    # ثم **يتابع النظام التداول طبيعياً** — لا مفتاح إيقاف
+                    # ولا حظر. و`HealthMonitor` لا يمسح `risk_events` حسب
+                    # الخطورة إطلاقاً، فالحدث يبقى سطراً في القاعدة لا أثر
+                    # له. النتيجة: مركز أُكِّد زوال وقفه من المنصة يبقى
+                    # مكشوفاً، والنظام يفتح مراكز جديدة فوقه.
+                    #
+                    # هذا يخالف القاعدة المطلقة التي يقتبسها المشروع نفسه
+                    # في `_record_exit` وينفّذها هناك: "If protection cannot
+                    # be proven, the position is NOT protected and new
+                    # trading must be blocked". نُوحِّد السلوك هنا بنفس
+                    # الطريقة — الحالة مؤكَّدة لا مشكوكة: الاستعلام أثبت أن
+                    # الوقف غير قائم، وإعادة وضعه فشلت.
                     self.db.risk_event('UNPROTECTED_POSITION', 'CRITICAL',
                                        f"{sym} مركز {pos_id}", sym)
+                    if self.health:
+                        self.health.engage_kill_switch(
+                            f"مركز {pos_id} ({sym}) بلا وقف على المنصة وتعذّرت "
+                            f"إعادة وضعه — يلزم تدخل يدوي")
+                continue
+
+            breach = (stop - px) / stop * 100 if stop > 0 else 0
+
+            # 2ب) ⚠️ إصلاح (تدقيق ما بعد V11) — النافذة العمياء:
+            # القسم (2) يشترط `px > stop` لأن بينانس ترفض وقفاً يُفعَّل
+            # فوراً، والقسم (3) يشترط اختراقاً ≥ emergency_breach_pct.
+            # فإذا اختفى الوقف والسعر بينهما (0 ≤ اختراق < الحد)، لم يكن
+            # يحدث **أي شيء**: لا وقف يُعاد، لا خروج، ولا حتى تسجيل —
+            # مركز بلا أي حماية على المنصة والنظام صامت تماماً عنه.
+            # السعر تحت الوقف أصلاً يعني أن شرط الخروج تحقَّق فعلياً،
+            # فالخروج السوقي هو التصرّف الصحيح لا الانتظار حتى يتسع
+            # الاختراق. لا يُنفَّذ إلا بعد التأكد من أن المركز قائم فعلاً،
+            # كما في القسم (3) تماماً.
+            if not stop_alive and not stop_filled and px <= stop:
+                self.db.risk_event(
+                    'STOP_MISSING_BELOW_TRIGGER', 'CRITICAL',
+                    f"{sym} مركز {pos_id}: الوقف غير قائم والسعر {px} عند/تحت "
+                    f"الوقف {stop} (اختراق {breach:.2f}%) — لا يمكن إعادة وضع "
+                    f"وقف يُفعَّل فوراً، فالخروج السوقي هو الحماية الوحيدة", sym)
+                held = self._verify_still_held(sym, p['qty'])
+                if held <= 0:
+                    self.db.close_position(pos_id, realized_pnl=0.0)
+                    actions.append({'position': pos_id, 'action': 'ALREADY_CLOSED'})
+                    continue
+                ok = self._exit_via_gate(p, sym, min(held, p['qty']),
+                                         'EMERGENCY', 'STOP_MISSING_EXIT')
+                actions.append({'position': pos_id,
+                                'action': 'STOP_MISSING_EXIT' if ok
+                                          else 'STOP_MISSING_EXIT_FAILED'})
                 continue
 
             # 3) السعر اخترق الوقف بهامش خطر والأمر لم يُنفَّذ ⇒ خروج طارئ
-            breach = (stop - px) / stop * 100 if stop > 0 else 0
             if breach >= self.emergency_breach_pct and not stop_filled:
                 held = self._verify_still_held(sym, p['qty'])
                 if held <= 0:
@@ -728,9 +831,16 @@ class OrderManager:
         بكمية أصغر من الحقيقية، تاركاً الباقي **بلا حماية وبلا تتبّع
         إطلاقاً** (الأخ أُلغي فور أي تنفيذ، جزئياً كان أم كاملاً).
         """
-        norm = self.normalize_response(r, fallback_price=pos.get('stop_loss') or 0.0)
+        _b, _q = self._symbol_assets(symbol)
+        norm = self.normalize_response(r, fallback_price=pos.get('stop_loss') or 0.0,
+                                       base_asset=_b, quote_asset=_q)
         qty, avg, fee = norm['qty'], norm['avg_price'], norm['fee']
         fills = norm['fills']
+        if norm.get('fee_uncertain'):
+            self.db.risk_event(
+                'FEE_ASSET_UNCONVERTIBLE', 'WARNING',
+                f"{symbol} خروج: عمولة بأصل ثالث {norm.get('fee_by_asset')} — "
+                f"مستبعَدة من التكلفة، لا تُخمَّن", symbol)
         if qty <= 0 or avg <= 0:
             # لا نسجّل خروجاً بأرقام غير موثوقة — تُنتج PnL وهمياً
             self.db.risk_event('EXIT_UNRELIABLE_FILL', 'CRITICAL',
@@ -755,7 +865,21 @@ class OrderManager:
                     f"كمية خروج تتجاوز المركز {pos['id']} — تحقَّق يدوياً")
             qty = remaining_before   # الحد الآمن الأقصى، لا الرقم الخام غير المتّسق
 
-        pnl_chunk = (avg - pos['entry_price']) * qty - fee
+        # ⚠️ إصلاح حرِج (تدقيق ما بعد V11): كانت تطرح رسم الخروج وحده،
+        # ورسم الدخول (المُخزَّن في `positions.fees` منذ `open_long`) لا
+        # يدخل الحساب إطلاقاً — فكل PnL محقَّق مُبالَغ فيه بمقدار عمولة
+        # الدخول. الأخطر أنه انحراف عن الباكتست نفسه
+        # (`backtest/engine.py`: `pnl = gross - pos.entry_fee - fill.fee`)،
+        # أي أن التشغيل الورقي — الموجود أصلاً ليتحقّق من الباكتست —
+        # كان سيُظهر نتائج أفضل منه لنفس الصفقات بالضبط، فيُقرأ الفارق
+        # كإشارة سوق وهو خطأ حسابي. برسوم 0.1% لكل جهة، نصف تكلفة
+        # التداول كانت مخفيّة عن كل تقرير.
+        #
+        # رسم الدخول يُطرَح مرة واحدة فقط — في أول شريحة خروج — وإلا
+        # تكرَّر طرحه في كل شريحة من خروج جزئي متعدد المراحل.
+        entry_fee_unbilled = (float(pos.get('fees') or 0.0)
+                              if float(pos.get('sold_qty') or 0.0) <= 0 else 0.0)
+        pnl_chunk = (avg - pos['entry_price']) * qty - fee - entry_fee_unbilled
         ins = self.db.insert_order_if_absent(
             position_id=pos['id'], exchange_order_id=str(r.get('orderId')),
             client_order_id=client_order_id, symbol=symbol, side='SELL',
