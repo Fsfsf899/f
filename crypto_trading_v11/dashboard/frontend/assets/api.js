@@ -111,6 +111,9 @@ export const api = {
   settings:        ()   => get('/settings', null, TTL.historical),
   opportunityScans:     (p) => get('/opportunity-scans', p, TTL.live),
   lastOpportunityScan:  ()  => get('/opportunity-scans/last', null, TTL.live),
+  account:              ()  => get('/account', null, TTL.live),
+  sizingPlan:           (p) => get('/sizing-plan', p, TTL.live),
+  sizingPlans:          (p) => get('/sizing-plans', p, TTL.live),
 };
 
 export function clearCache(prefix) {

@@ -30,11 +30,15 @@ class DatabaseUnavailable(Exception):
     """القاعدة غير متاحة — تُعرض كحالة، لا تُخفى."""
 
 
-EXPECTED_SCHEMA_VERSION = 5
+EXPECTED_SCHEMA_VERSION = 6
 MAX_ROWS = 5000
 QUERY_TIMEOUT_MS = 4000
 
 # الجداول التي تعتمد عليها اللوحة. نقص أيٍّ منها ⇒ DEGRADED لا انهيار.
+# `sizing_plans` عمداً **خارج** هذه المجموعة: قاعدة أُنشئت بمخطط v6
+# لكن لم يُحسَب فيها أي خطة بعد قاعدة صالحة تماماً، ولا يجوز وسمها
+# DEGRADED لذلك. غياب الخطط يُعالَج في طبقة الاستعلام برد
+# NO_PLAN_YET صريح.
 REQUIRED_TABLES = {'signals', 'recommendations', 'positions', 'orders',
                    'fills', 'risk_events', 'system_events', 'kv'}
 

@@ -14,7 +14,7 @@ Spot / Long فقط على بينانس. استخدام شخصي.
 
 | الشرط | الحالة |
 |---|---|
-| الاختبارات | ✅ 845 تنجح (محرك+دخول+مخاطر+OCO+اختيار+حساب 663، لوحة 140، واجهة 42) |
+| الاختبارات | ✅ 860 تنجح (محرك+دخول+مخاطر+OCO+اختيار+حساب+تحجيم 678، لوحة 140، واجهة 42) |
 | MAINNET | ⛔ مقفول في المصدر |
 | بيانات حقيقية | ❌ BLOCKED — لا fallback |
 | حالة الحافة | UNKNOWN — لم تُثبَت |
@@ -50,6 +50,7 @@ python3 watchdog.py paper           # نفسه، لكن يُعيد التشغي�
 # الغياب = السلوك أحادي الرمز الأصلي حرفياً، بلا أي تغيير.
 python3 live_trader.py paper --scan-symbols BTCUSDT,ETHUSDT,SOLUSDT
 SCAN_SYMBOLS=BTCUSDT,ETHUSDT python3 live_trader.py paper   # نفسه عبر البيئة
+python3 live_trader.py sizing --symbol BTCUSDT   # كم أدخل؟ ولماذا
 python3 live_trader.py report --env paper
 python3 live_trader.py gate   --env paper
 python3 live_trader.py health --env paper

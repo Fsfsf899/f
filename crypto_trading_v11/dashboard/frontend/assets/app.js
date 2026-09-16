@@ -13,6 +13,7 @@ import { lineChart, barChart, drawdownChart, calibrationChart, insufficient } fr
 const ROUTES = [
   { id: 'dashboard',       title: 'Dashboard',        icon: '▣' },
   { id: 'opportunity',     title: 'Best Opportunity', icon: '🎯' },
+  { id: 'sizing',          title: 'How Much To Enter', icon: '💰' },
   { id: 'recommendations', title: 'Recommendations',  icon: '◆' },
   { id: 'positions',       title: 'Open Positions',   icon: '▤' },
   { id: 'trades',          title: 'Trade History',    icon: '≡' },
@@ -29,7 +30,7 @@ const S = {
 };
 
 const REFRESH = { dashboard: 7000, positions: 7000, health: 12000,
-  audit: 10000, recommendations: 10000, opportunity: 8000 };
+  audit: 10000, recommendations: 10000, opportunity: 8000, sizing: 7000 };
 
 /* ═══ التوجيه ═══ */
 function parseHash() {
@@ -285,6 +286,98 @@ function posTable(items) {
 }
 
 /* ── أفضل فرصة (الأقسام 78-98) ── */
+/* ═══ كم أدخل؟ — الأقسام 13 و25 و34 من مواصفة V11 FINAL ═══
+   قاعدة صارمة: **لا حساب في هذا الملف إطلاقاً.** كل رقم معروض قادم
+   كما هو من `PositionSizer` الكنسي عبر الخلفية. القسم 25 صريح:
+   "must come from the backend PositionSizer ... not from frontend
+   arithmetic". أي ضرب أو قسمة هنا يجعل اللوحة مصدر حقيقة ثانياً
+   يخالف الخلفية بصمت. */
+PAGES.sizing = async () => {
+  let plan, account;
+  try {
+    [plan, account] = await Promise.all([
+      api.sizingPlan().then((r) => r.data),
+      api.account().then((r) => r.data),
+    ]);
+  } catch (e) { return mount(errorState(e, render)); }
+
+  if (!plan || plan.reason === 'NO_PLAN_YET') {
+    return mount(el('section', { class: 'card' },
+      el('h2', {}, '💰 كم أستطيع أن أدخل؟'),
+      el('div', { class: 'state' },
+        el('div', { class: 'big' }, 'لم تُحسَب أي خطة بعد'),
+        'شغّل المتداول (paper/testnet) أو نفّذ '
+        + '`python3 live_trader.py sizing` لتوليد أول خطة.')));
+  }
+
+  const enter = plan.decision === 'ENTER';
+  const cur = account?.account_currency || 'USDT';
+  const stale = (plan.plan_age_seconds ?? 0) > 300;
+
+  const decisionCard = el('section', { class: 'card' },
+    el('h2', {}, '💰 القرار', badge(enter ? 'ENTER' : 'NO TRADE',
+                                    enter ? 'buy' : 'no')),
+    el('div', { class: 'state' },
+      el('div', { class: 'big' },
+        enter ? `${money(plan.position_value)} ${cur}` : 'لا تدخل'),
+      enter ? `${num(plan.final_quantity, 8)} وحدة من ${plan.symbol}`
+            : (plan.reason || 'غير محدَّد')),
+    stale ? el('div', { class: 'warn-bar' },
+      `⚠️ عمر هذه الخطة ${dur((plan.plan_age_seconds || 0) * 1000)} — `
+      + 'قد لا تعكس حالة حسابك الآن.') : null);
+
+  const balanceCard = el('section', { class: 'card' },
+    el('h2', {}, '🏦 رصيد الحساب',
+       statusBadge(account?.status || 'UNAVAILABLE')),
+    details([
+      field('الرصيد الكلي', money(account?.total_balance)),
+      field('المتاح فعلاً', money(account?.available_balance), 'g'),
+      field('المحجوز في أوامر', money(account?.locked_balance)),
+      field('الاحتياطي', money(account?.reserve_amount)),
+      field('القابل للاستخدام', el('b', {}, money(account?.usable_equity))),
+      field('تعرّض قائم', money(account?.existing_exposure)),
+      field('عمر قراءة الرصيد',
+            isNil(account?.balance_age_seconds) ? NA
+              : dur((account.balance_age_seconds || 0) * 1000)),
+      field('المصدر', account?.source || NA),
+    ]));
+
+  const riskCard = el('section', { class: 'card' },
+    el('h2', {}, '⚖️ المخاطرة والحجم'),
+    details([
+      field('المخاطرة الأساسية', pct(plan.base_risk_pct)),
+      field('المخاطرة الفعّالة', pct(plan.effective_risk_pct)),
+      field('المخاطرة بعد التقريب', pct(plan.actual_risk_pct)),
+      field('أقصى مبلغ مخاطرة', money(plan.max_risk_amount)),
+      field('الدخول', price(plan.entry)),
+      field('الوقف', price(plan.stop), 'r'),
+      field('الهدف', price(plan.target), 'g'),
+      field('مسافة الوقف', pct(plan.stop_distance_pct)),
+      field('الخسارة لكل وحدة', money(plan.risk_per_unit)),
+      field('R:R', num(plan.risk_reward, 2)),
+      field('الكمية الخام', num(plan.raw_quantity, 8)),
+      field('الكمية النهائية', el('b', {}, num(plan.final_quantity, 8))),
+      field('قيمة المركز', money(plan.position_value)),
+      field('أقصى قيمة مسموحة', money(plan.max_position_value)),
+      field('رسوم الدخول', money(plan.estimated_entry_fee)),
+      field('رسوم الخروج', money(plan.estimated_exit_fee)),
+      field('الانزلاق (bps)', num(plan.slippage_bps, 2)),
+      field('الفارق السعري (bps)', num(plan.spread_bps, 2)),
+      field('أقصى خسارة متوقَّعة', money(plan.estimated_max_loss), 'r'),
+      field('المتبقي بعد الأمر', money(plan.remaining_available)),
+      field('خُفِّض بسبب الرصيد', plan.capped_by_balance ? 'نعم' : 'لا'),
+    ]));
+
+  const whyCard = el('section', { class: 'card' },
+    el('h2', {}, '❓ لماذا هذا المبلغ؟'),
+    (plan.explanation && plan.explanation.length)
+      ? el('ul', { class: 'why-list' },
+           ...plan.explanation.map((line) => el('li', {}, line)))
+      : el('div', { class: 'state' }, 'لا تفسير مُسجَّل لهذه الخطة.'));
+
+  mount(el('div', {}, decisionCard, balanceCard, riskCard, whyCard));
+};
+
 PAGES.opportunity = async () => {
   let last, history;
   try {

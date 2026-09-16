@@ -52,9 +52,12 @@ class Test01_V4ToV5Migration(unittest.TestCase):
 
         self.assertEqual(migrations.current_version(path), 4)
         report = migrations.run(path, verbose=False)
-        self.assertEqual(report['to'], 5)
+        # يتتبّع SCHEMA_VERSION لا رقماً حرفياً — الترقيم الثابت كان
+        # يكسر هذا الاختبار عند كل ترحيل جديد بلا سبب حقيقي.
+        self.assertEqual(report['to'], migrations.SCHEMA_VERSION)
         self.assertIn(5, report['applied'])
-        self.assertEqual(migrations.current_version(path), 5)
+        self.assertEqual(migrations.current_version(path),
+                         migrations.SCHEMA_VERSION)
 
         conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row

@@ -107,6 +107,30 @@ CREATE TABLE IF NOT EXISTS opportunity_scans (
 CREATE INDEX IF NOT EXISTS ix_oppscan_ts ON opportunity_scans(ts);
 CREATE INDEX IF NOT EXISTS ix_oppscan_selected ON opportunity_scans(selected_symbol);
 
+CREATE TABLE IF NOT EXISTS sizing_plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  symbol TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  reason TEXT,
+  account_status TEXT,
+  balance_age_s REAL,
+  available_balance REAL,
+  locked_balance REAL,
+  usable_equity REAL,
+  reserve_amount REAL,
+  effective_risk_pct REAL,
+  max_risk_amount REAL,
+  entry REAL, stop REAL, target REAL,
+  final_quantity REAL,
+  position_value REAL,
+  estimated_max_loss REAL,
+  remaining_available REAL,
+  plan_json TEXT NOT NULL
+        );
+CREATE INDEX IF NOT EXISTS ix_sizing_ts ON sizing_plans(ts);
+CREATE INDEX IF NOT EXISTS ix_sizing_symbol ON sizing_plans(symbol);
+
 CREATE TABLE IF NOT EXISTS daily_equity (
   day TEXT PRIMARY KEY, starting_equity REAL NOT NULL,
   ending_equity REAL, realized_pnl REAL DEFAULT 0,
@@ -374,6 +398,56 @@ class Database:
             'opportunities_json': json.dumps(opportunities, ensure_ascii=False),
         })
         return row_id
+
+    def save_sizing_plan(self, plan) -> int:
+        """
+        يحفظ خطة تحجيم (الأقسام 13 و25). الأعمدة المُفردة للاستعلام
+        والفرز؛ و`plan_json` يحمل الخطة كاملة بما فيها نص «لماذا هذا
+        المبلغ؟» فلا يفقد العرض شيئاً.
+        """
+        d = plan.to_dict()
+        acc = d.get('account') or {}
+        return self._ins('sizing_plans', {
+            'ts': int(time.time() * 1000),
+            'symbol': d.get('symbol') or '',
+            'decision': d.get('decision') or 'NO_TRADE',
+            'reason': d.get('reason') or '',
+            'account_status': acc.get('status'),
+            'balance_age_s': acc.get('balance_age_seconds'),
+            'available_balance': acc.get('available_balance'),
+            'locked_balance': acc.get('locked_balance'),
+            'usable_equity': acc.get('usable_equity'),
+            'reserve_amount': acc.get('reserve_amount'),
+            'effective_risk_pct': d.get('effective_risk_pct'),
+            'max_risk_amount': d.get('max_risk_amount'),
+            'entry': d.get('entry'), 'stop': d.get('stop'),
+            'target': d.get('target'),
+            'final_quantity': d.get('final_quantity'),
+            'position_value': d.get('position_value'),
+            'estimated_max_loss': d.get('estimated_max_loss'),
+            'remaining_available': d.get('remaining_available'),
+            'plan_json': json.dumps(d, ensure_ascii=False, default=str),
+        })
+
+    def latest_sizing_plan(self, symbol: Optional[str] = None) -> Optional[Dict]:
+        q = "SELECT * FROM sizing_plans"
+        args: tuple = ()
+        if symbol:
+            q += " WHERE symbol=?"
+            args = (symbol,)
+        rows = self.query(q + " ORDER BY id DESC LIMIT 1", args)
+        if not rows:
+            return None
+        r = rows[0]
+        r['plan'] = json.loads(r.get('plan_json') or '{}')
+        return r
+
+    def recent_sizing_plans(self, limit: int = 20) -> List[Dict]:
+        rows = self.query(
+            "SELECT * FROM sizing_plans ORDER BY id DESC LIMIT ?", (limit,))
+        for r in rows:
+            r['plan'] = json.loads(r.get('plan_json') or '{}')
+        return rows
 
     def recent_opportunity_scans(self, limit: int = 20) -> List[Dict]:
         rows = self.query(

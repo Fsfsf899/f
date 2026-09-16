@@ -209,3 +209,7 @@ a{color:var(--blue)}
   border-radius:8px;padding:9px 13px;font-size:12px;margin-bottom:13px;
   display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .warn-bar .tag{background:#3a2f14;border-color:#7a5c1a;color:#e3b341}
+
+/* قائمة «لماذا هذا المبلغ؟» — القسم 25 */
+.why-list { margin: 0; padding-inline-start: 1.25rem; line-height: 1.9; }
+.why-list li { margin-block: 0.35rem; }

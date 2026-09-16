@@ -15,7 +15,7 @@ import sqlite3
 import time
 from typing import List, Tuple, Callable
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def _cols(conn, table: str) -> List[str]:
@@ -176,9 +176,45 @@ def migrate_v4_to_v5(conn):
         "ON opportunity_scans(selected_symbol)")
 
 
+def migrate_v5_to_v6(conn):
+    """
+    v6: خطط التحجيم (الأقسام 13 و25 من مواصفة V11 FINAL) — جدول جديد
+    بالكامل، لا تعديل على جداول موجودة.
+
+    تُخزَّن هنا لأن لوحة المتابعة تتصل بقاعدة **للقراءة فقط وبلا مفاتيح
+    API**، فلا تستطيع سؤال بينانس بنفسها — ولا يجوز أن تستطيع. المتداول
+    يحسب الخطة بمحجِّمه الكنسي، واللوحة تعرض ما حُسب.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sizing_plans (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts INTEGER NOT NULL,
+          symbol TEXT NOT NULL,
+          decision TEXT NOT NULL,
+          reason TEXT,
+          account_status TEXT,
+          balance_age_s REAL,
+          available_balance REAL,
+          locked_balance REAL,
+          usable_equity REAL,
+          reserve_amount REAL,
+          effective_risk_pct REAL,
+          max_risk_amount REAL,
+          entry REAL, stop REAL, target REAL,
+          final_quantity REAL,
+          position_value REAL,
+          estimated_max_loss REAL,
+          remaining_available REAL,
+          plan_json TEXT NOT NULL
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS ix_sizing_ts ON sizing_plans(ts)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS ix_sizing_symbol ON sizing_plans(symbol)")
+
+
 MIGRATIONS: List[Tuple[int, Callable]] = [
     (2, migrate_v1_to_v2), (3, migrate_v2_to_v3), (4, migrate_v3_to_v4),
-    (5, migrate_v4_to_v5)]
+    (5, migrate_v4_to_v5), (6, migrate_v5_to_v6)]
 
 
 def current_version(path: str) -> int:

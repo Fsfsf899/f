@@ -814,6 +814,85 @@ class DashboardQueries:
         return self.db.query(
             'SELECT * FROM data_quality ORDER BY ts DESC LIMIT ?', (limit,))
 
+    def account_status(self) -> Dict:
+        """
+        حالة الحساب — القسم 14 من مواصفة V11 FINAL.
+
+        ⚠️ اللوحة **لا تسأل بينانس**: اتصالها بالقاعدة للقراءة فقط وبلا
+        مفاتيح API، وهذا قيد أمني مقصود لا نقص. ما يُعرَض هنا هو ما
+        حسبه المتداول وخزّنه في آخر خطة تحجيم.
+
+        القِدَم يُحتسَب من لحظة الطلب لا من لحظة الحفظ: خطة عمرها ساعة
+        ليست حالة حساب حالية، ويجب أن يرى المستخدم ذلك صراحةً.
+        """
+        row = self.db.one('SELECT * FROM sizing_plans ORDER BY id DESC LIMIT 1')
+        if not row:
+            return {'status': 'UNAVAILABLE', 'reason': 'NO_PLAN_YET',
+                    'note': 'لم يحسب المتداول أي خطة بعد'}
+        plan = json.loads(row.get('plan_json') or '{}')
+        acc = plan.get('account') or {}
+        age_s = max(0.0, (time.time() * 1000 - (row.get('ts') or 0)) / 1000.0)
+        return {
+            'account_currency': acc.get('account_currency', 'USDT'),
+            'balance_timestamp': acc.get('balance_timestamp'),
+            'balance_age_seconds': acc.get('balance_age_seconds'),
+            'plan_ts': row.get('ts'),
+            'plan_age_seconds': round(age_s, 1),
+            'total_balance': acc.get('total_balance'),
+            'available_balance': acc.get('available_balance'),
+            'locked_balance': acc.get('locked_balance'),
+            'usable_equity': acc.get('usable_equity'),
+            'reserve_amount': acc.get('reserve_amount'),
+            'existing_exposure': acc.get('existing_exposure'),
+            'available_for_new_trade': acc.get('available_for_new_trade'),
+            'status': acc.get('status', 'UNAVAILABLE'),
+            'source': acc.get('source'),
+            'blocking_reason': acc.get('blocking_reason'),
+        }
+
+    def sizing_plan(self, symbol: Optional[str] = None) -> Dict:
+        """
+        خطة «كم أدخل؟» — الأقسام 13 و25.
+
+        كل رقم هنا من `PositionSizer` الكنسي عبر المتداول. لا حساب في
+        هذه الطبقة ولا في الواجهة (القسم 25 صريح في ذلك).
+        """
+        q = 'SELECT * FROM sizing_plans'
+        args: tuple = ()
+        if symbol:
+            q += ' WHERE symbol=?'
+            args = (symbol,)
+        row = self.db.one(q + ' ORDER BY id DESC LIMIT 1', args)
+        if not row:
+            return {'decision': 'NO_TRADE', 'reason': 'NO_PLAN_YET',
+                    'explanation': ['لم يحسب المتداول أي خطة بعد.']}
+        plan = json.loads(row.get('plan_json') or '{}')
+        plan['plan_ts'] = row.get('ts')
+        plan['plan_age_seconds'] = round(
+            max(0.0, (time.time() * 1000 - (row.get('ts') or 0)) / 1000.0), 1)
+        return plan
+
+    def sizing_plans(self, limit: int = 20) -> List[Dict]:
+        rows = self.db.query(
+            'SELECT * FROM sizing_plans ORDER BY id DESC LIMIT ?', (limit,))
+        out = []
+        for r in rows:
+            out.append({
+                'id': r['id'], 'ts': r['ts'], 'symbol': r['symbol'],
+                'decision': r['decision'], 'reason': r['reason'],
+                'account_status': r['account_status'],
+                'available_balance': r['available_balance'],
+                'usable_equity': r['usable_equity'],
+                'reserve_amount': r['reserve_amount'],
+                'effective_risk_pct': r['effective_risk_pct'],
+                'entry': r['entry'], 'stop': r['stop'], 'target': r['target'],
+                'final_quantity': r['final_quantity'],
+                'position_value': r['position_value'],
+                'estimated_max_loss': r['estimated_max_loss'],
+                'remaining_available': r['remaining_available'],
+            })
+        return out
+
     def opportunity_scans(self, limit: int = 20) -> List[Dict]:
         """
         سجل عمليات مسح أفضل فرصة — القسم 93 (86 أيضاً: جدول المقارنة).

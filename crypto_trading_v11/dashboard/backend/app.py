@@ -487,6 +487,24 @@ def create_app(db_path: Optional[str] = None,
                       'reason': 'NO_SCAN_YET', 'opportunities': []})
         return ok(last)
 
+    @app.get('/api/account')
+    def api_account():
+        """
+        القسم 14: حالة الحساب. **لا أسرار إطلاقاً** — لا مفتاح ولا توقيع
+        ولا بصمة؛ الحقول محدَّدة صراحةً في `queries.account_status()`
+        ولا يُمرَّر قاموس خام من أي مصدر.
+        """
+        return ok(q.account_status())
+
+    @app.get('/api/sizing-plan')
+    def api_sizing_plan():
+        """القسمان 13/25: «كم أدخل؟ ولماذا هذا المبلغ؟»."""
+        return ok(q.sizing_plan(request.args.get('symbol') or None))
+
+    @app.get('/api/sizing-plans')
+    def api_sizing_plans():
+        return ok(q.sizing_plans(min(_int('limit', 20) or 20, MAX_LIMIT)))
+
     @app.get('/api/settings')
     def api_settings():
         return ok(q.settings())

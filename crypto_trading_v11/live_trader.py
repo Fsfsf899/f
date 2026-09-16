@@ -31,6 +31,7 @@ from src.risk.position_sizing import PositionSizer
 from src.account.state import AccountSnapshot
 from src.account.providers import (PaperAccountProvider,
                                    ExchangeAccountProvider)
+from src.account.sizing_plan import build_sizing_plan
 from src.risk.risk_guard import RiskGuard
 from src.backtest.costs import CostModel
 from src.storage.database import Database
@@ -476,6 +477,15 @@ class LiveTrader:
             min_qty=rules.get('min_qty', 0.0),
             min_notional=rules.get('min_notional', 10.0),
             fee_rate=self.cfg.costs.taker_fee)
+        # خطة التحجيم تُبنى وتُخزَّن في الحالتين — دخول أو منع (الأقسام
+        # 13 و25). اللوحة تقرأ من القاعدة، فلو لم تُخزَّن عند المنع لما
+        # عرف المستخدم **لماذا** لم يدخل النظام، وهو أهم ما يريد معرفته.
+        plan = build_sizing_plan(
+            symbol=self.symbol, sizer=self.sizer, account=snap, cfg=self.cfg,
+            signal=sig, rules=rules, max_notional=self.max_notional,
+            consecutive_losses=acc['consecutive_losses'])
+        self.db.save_sizing_plan(plan)
+
         if sz.get('blocked') or sz['notional'] <= 0:
             reason = sz.get('reason', 'SIZING_BLOCKED')
             self.db.save_recommendation(sid, sig.to_dict(), acted=False,
@@ -812,7 +822,7 @@ def main():
                     choices=['check', 'shadow', 'monitor', 'paper', 'testnet',
                              'live', 'report', 'recon', 'health', 'gate',
                              'readiness', 'kill', 'release', 'migrate', 'intents',
-                             'live-status'])
+                             'live-status', 'sizing'])
     ap.add_argument('--symbol', default=os.getenv('SYMBOL', 'BTCUSDT'))
     ap.add_argument('--interval', default=os.getenv('INTERVAL', '4h'))
     ap.add_argument('--env', default=None,
@@ -1060,8 +1070,12 @@ def main():
             return 0 if r.ok else 1
 
     # ── أوضاع التشغيل ──
+    # `sizing` ليس بيئة تنفيذ بل استعلام عن حالة الحساب — يعمل داخل
+    # بيئة قائمة يحدّدها `--env` (paper افتراضاً)، تماماً كأوامر
+    # report/gate/health.
+    run_env = (a.env or 'paper') if a.mode == 'sizing' else a.mode
     try:
-        c = envcfg_for(a.mode)
+        c = envcfg_for(run_env)
         warns = preflight(c)
     except EnvironmentError_ as e:
         print(f'\n{e}\n')
@@ -1094,6 +1108,44 @@ def main():
             print(f'\n⛔ UNSUPPORTED_SCAN_SYMBOL: {unsupported} — '
                   f'المدعوم: {SUPPORTED_ASSETS}')
             return 1
+
+    if a.mode == 'sizing':
+        # ⚠️ درس متكرّر في هذا المشروع: ميزة بلا مسار تشغيل ميزة ميتة.
+        # هذا الأمر هو مسار «كم أدخل؟» من سطر الأوامر (الأقسام 13/25/34)،
+        # مقابل اللوحة التي تقرأ الخطة المُخزَّنة.
+        try:
+            t = LiveTrader(c, cfg, a.max_notional, scan_symbols=scan_symbols)
+        except Exception as e:
+            print(f'\n⛔ {type(e).__name__}: {str(e)[:300]}')
+            return 1
+        snap = t.account_snapshot([a.symbol])
+        plan = build_sizing_plan(
+            symbol=a.symbol, sizer=t.sizer, account=snap, cfg=cfg,
+            signal=None, rules=t._symbol_rules(a.symbol),
+            max_notional=a.max_notional,
+            consecutive_losses=t.risk_guard.consecutive_losses)
+        t.db.save_sizing_plan(plan)
+        if a.json:
+            print(json.dumps(plan.to_dict(), ensure_ascii=False,
+                             indent=2, default=str))
+            return 0
+        d = plan.to_dict()
+        print(f"\n  ═══ كم أستطيع أن أدخل؟ — {a.symbol} ═══\n")
+        print(f"  حالة الحساب       {snap.status}"
+              f"  (عمر القراءة {snap.age_seconds:.1f}ث)")
+        print(f"  الرصيد المتاح     {snap.available_balance:,.2f} {snap.quote_asset}")
+        print(f"  المحجوز           {snap.locked_balance:,.2f}")
+        print(f"  الاحتياطي         {snap.reserve_amount:,.2f}")
+        print(f"  القابل للاستخدام  {snap.usable_equity:,.2f}")
+        print(f"  أقصى مخاطرة       {d.get('max_risk_amount') or 0:,.2f}"
+              f"  ({d.get('base_risk_pct') or 0:.2f}%)")
+        print(f"\n  القرار: {plan.decision}"
+              + (f"  ({plan.reason})" if plan.reason != 'OK' else ''))
+        print('\n  لماذا هذا المبلغ؟')
+        for line in plan.explanation:
+            print(f'    • {line}')
+        print()
+        return 0
 
     print(print_banner(c, warns))
     try:
