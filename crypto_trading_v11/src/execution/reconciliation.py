@@ -67,11 +67,16 @@ class ReconResult:
 
 class Reconciler:
     def __init__(self, db, client: BinanceClient, tolerance: float = 0.02,
-                 gate=None):
+                 gate=None, order_manager=None):
         self.db = db
         self.client = client
         self.tolerance = tolerance
         self.gate = gate
+        # `order_manager` اختياري: يُمكِّن `auto_resolve` من تسجيل الخروج
+        # عبر المسجِّل الكنسي `_record_exit()` نفسه بدل اختراع إغلاق
+        # بربح صفر. غيابه لا يكسر شيئاً — يجعل الإغلاق التلقائي يمتنع
+        # صراحةً بدل تزوير الرقم (انظر auto_resolve).
+        self.order_manager = order_manager
 
     def run(self, symbols: Optional[List[str]] = None,
             auto_repair: bool = True) -> ReconResult:
@@ -345,6 +350,79 @@ class Reconciler:
                 'trade_ids': [str(t.get('id')) for t in missing[:5]],
                 'action': 'تعبئات على المنصة غير مسجَّلة محلياً'}
 
+    # ═══ إغلاق مركز اختفى من المنصة ═══
+    def _resolve_position_missing(self, d: Dict) -> List[str]:
+        """
+        ⚠️ إصلاح حرِج (تدقيق ما بعد V11): كان هذا المسار يُغلق المركز بـ
+        `realized_pnl=0.0` **دائماً**، مهما كان الخروج الحقيقي. والحالة
+        الشائعة لـ POSITION_MISSING هي أن الوقف نُفِّذ فعلاً — أي خسارة
+        حقيقية تُسجَّل صفراً.
+
+        الأثر كان مضاعفاً:
+          1. كل تقرير يعتبرها صفقة متعادلة، فمنحنى الأداء مزيَّف.
+          2. `close_position()` لا تُحدِّث `RiskGuard` إطلاقاً، فالخسارة
+             لا تدخل الحد اليومي ولا سلسلة الخسائر — أي أن **حدود
+             المخاطر تُتجاوَز عبر هذا المسار**، وهي آخر خط دفاع.
+          3. المصالحة تسبق `guard_stops()` في `tick()`، فإغلاقها المزيَّف
+             يمنع المسار الصحيح من تسجيل الخروج أصلاً.
+
+        الآن: يُقرأ الخروج الحقيقي من المنصة ويُسجَّل عبر `_record_exit()`
+        الكنسي نفسه (الذي يحدّث PnL والرسوم والتوصية و RiskGuard) — لا
+        تطبيق موازٍ. وإن تعذّر إثبات الخروج، **لا يُغلَق المركز بصفر
+        مُختلَق**: يبقى الاختلاف قائماً ويمنع التداول، وهو سلوك المشروع
+        المعلن عند غياب اليقين.
+        """
+        actions: List[str] = []
+        sym = d.get('symbol')
+        pid = d.get('position_id')
+        positions = [p for p in self.db.open_positions()
+                     if (p['id'] == pid if pid is not None
+                         else p['symbol'] == sym)]
+        for p in positions:
+            resp, reason, cid = self._exit_evidence(p['symbol'], p)
+            if resp is not None and self.order_manager is not None:
+                self.order_manager._record_exit(p, p['symbol'], resp, reason,
+                                                client_order_id=cid)
+                after = self.db.query('SELECT status, realized_pnl FROM positions '
+                                      'WHERE id=?', (p['id'],))
+                if after and after[0]['status'] == 'CLOSED':
+                    self.db.system_event(
+                        'RECON_EXIT_RECORDED',
+                        f"pos {p['id']} {p['symbol']} خروج {reason} "
+                        f"pnl={after[0]['realized_pnl']}")
+                    actions.append(
+                        f"سُجِّل خروج المركز {p['id']} ({reason}) "
+                        f"بربح {after[0]['realized_pnl']}")
+                    continue
+            # لا دليل خروج موثوق — لا إغلاق بصفر مُختلَق
+            self.db.risk_event(
+                'RECON_EXIT_UNPROVEN', 'CRITICAL',
+                f"{p['symbol']} pos {p['id']}: المركز غير موجود على المنصة "
+                f"وتعذّر إثبات كيفية خروجه — لا يُغلَق بربح صفر، يلزم "
+                f"تدخل يدوي", p['symbol'])
+            actions.append(f"مركز {p['id']}: خروج غير مُثبَت — يلزم تدخل يدوي")
+        return actions
+
+    def _exit_evidence(self, symbol: str, pos: Dict):
+        """
+        يبحث عن أمر الخروج المُنفَّذ فعلاً على المنصة. يُرجع
+        (استجابة الأمر، سبب الخروج، معرّف العميل) أو (None, '', None).
+        """
+        for key, cid_key, reason in (
+                ('stop_order_id', 'stop_client_order_id', 'STOP_LOSS'),
+                ('target_order_id', 'target_client_order_id', 'TAKE_PROFIT')):
+            oid = pos.get(key)
+            if not oid:
+                continue
+            try:
+                st = self.client.order_status(symbol, oid)
+            except BinanceError:
+                continue
+            if (st.get('status') or '').upper() in ('FILLED', 'PARTIALLY_FILLED') \
+                    and float(st.get('executedQty', 0) or 0) > 0:
+                return st, reason, str(pos.get(cid_key) or oid)
+        return None, '', None
+
     def auto_resolve(self, res: ReconResult) -> List[str]:
         """
         إصلاح سجلّي آمن فقط. لا يرسل أي أمر تداول إطلاقاً.
@@ -353,13 +431,7 @@ class Reconciler:
         actions: List[str] = []
         for d in res.discrepancies:
             if d['kind'] == D_POSITION_MISSING:
-                for p in self.db.open_positions():
-                    if p['symbol'] == d.get('symbol'):
-                        self.db.close_position(p['id'], realized_pnl=0.0)
-                        self.db.system_event(
-                            'RECON_AUTOCLOSE',
-                            f"pos {p['id']} {d['symbol']} أُغلق سجلياً")
-                        actions.append(f"أُغلق سجل المركز {p['id']}")
+                actions += self._resolve_position_missing(d)
             elif d['kind'] == D_STOP_MISSING and d.get('exchange_status') in (
                     'CANCELED', 'EXPIRED', 'NOT_FOUND'):
                 self.db.update_position(d['position_id'], stop_order_id=None)

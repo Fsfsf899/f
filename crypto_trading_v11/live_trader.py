@@ -148,7 +148,8 @@ class LiveTrader:
             self.orders = OrderManager(self.db, self.client, cfg, self.health,
                                        risk_guard=self.risk_guard)
             self.gate = self.orders.gate
-            self.recon = Reconciler(self.db, self.client, gate=self.gate)
+            self.recon = Reconciler(self.db, self.client, gate=self.gate,
+                                    order_manager=self.orders)
         elif self.env.touches_exchange:
             self.client = BinanceClient(envcfg.api_key, envcfg.api_secret,
                                         testnet=(self.env is Env.TESTNET))
@@ -163,7 +164,8 @@ class LiveTrader:
             self.orders = OrderManager(self.db, self.client, cfg, self.health,
                                        risk_guard=self.risk_guard)
             self.gate = self.orders.gate
-            self.recon = Reconciler(self.db, self.client, gate=self.gate)
+            self.recon = Reconciler(self.db, self.client, gate=self.gate,
+                                    order_manager=self.orders)
 
         import socket
         self.pid = os.getpid()

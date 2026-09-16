@@ -483,13 +483,54 @@ class IdempotentOrderGate:
             return None
 
         list_status = resp.get('listOrderStatus', '')
-        if list_status == 'ALL_DONE':
-            # أحد الطرفين نُفِّذ والآخر أُلغي تلقائياً — انتهت دورة
-            # الحماية بنجاح (المركز خرج عبر الوقف أو الهدف)
-            state = FILLED
+
+        # ⚠️ إصلاح (تدقيق ما بعد V11): كان `ALL_DONE` يُترجَم FILLED
+        # مباشرة بافتراض "أحد الطرفين نُفِّذ والآخر أُلغي تلقائياً".
+        # هذا خطأ: `ALL_DONE` في بينانس تعني فقط أن القائمة لم تعد
+        # نشطة — وهي تشمل حالة **إلغاء الطرفين معاً** (الحماية أُزيلت
+        # يدوياً أو انتهت صلاحيتها) والمركز لا يزال مفتوحاً تماماً.
+        #
+        # الأثر قبل الإصلاح: تُسجَّل النية FILLED — أي "تنفيذ وقع"
+        # ولم يقع. و`_send_loop` يعامل FILLED كنجاح (`ok=True`)، فيتابع
+        # `_place_oco` ويُخزِّن معرّفَي وقف وهدف **مُلغيين** على المركز،
+        # فيبدو محمياً في القاعدة وهو مكشوف تماماً على المنصة. سجل
+        # التدقيق يقول إن المركز خرج وهو مفتوح.
+        #
+        # (تصحيح لادّعاء سابق: هذا **لا** يمنع إعادة الحماية للأبد —
+        # `active_intents()` تستبعد الحالات النهائية، فتُصدِر
+        # `_next_stop_version()` نسخة جديدة، و`guard_stops()` تُعيد وضع
+        # وقف في دورة لاحقة. الضرر في زيف السجل وفي نافذة الانكشاف،
+        # لا في استحالة التعافي.)
+        #
+        # الحسم الصحيح من حالات الأطراف نفسها (`orderReports`)، لا من
+        # حالة القائمة المجمَّعة. لا نستنتج تنفيذاً لم يقع.
+        reports = resp.get('orderReports') or resp.get('orders') or []
+        leg_states = [str(o.get('status', '')).upper() for o in reports
+                      if isinstance(o, dict) and o.get('status')]
+        any_filled = any(st in ('FILLED', 'PARTIALLY_FILLED') for st in leg_states)
+        all_gone = bool(leg_states) and all(
+            st in ('CANCELED', 'EXPIRED', 'REJECTED') for st in leg_states)
+
+        if any_filled:
+            state = FILLED               # طرف نُفِّذ فعلاً — المركز خرج
+        elif all_gone:
+            # الحماية زالت ولم يُنفَّذ شيء — المركز (إن كان مفتوحاً) بلا
+            # حماية الآن. حالة غير نهائية عمداً كي تستطيع
+            # `_next_stop_version()` إصدار نسخة جديدة وإعادة الحماية.
+            state = CANCELED
+            self.db.risk_event(
+                'OCO_CANCELED_NOT_FILLED', 'CRITICAL',
+                f"{cid}: طرفا OCO أُلغيا بلا تنفيذ — الحماية زالت "
+                f"({leg_states})", intent.symbol)
+        elif not leg_states:
+            # لا تفاصيل أطراف: لا نُخمِّن تنفيذاً. نعتمد حالة القائمة
+            # للنشاط فقط، وأي شيء آخر يبقى غير محسوم.
+            if list_status in ('EXECUTING', ''):
+                state = OPEN
+            else:
+                return None      # يتابع recover_one حكمه الأصلي بأمان
         elif list_status in ('EXECUTING', ''):
-            # لا تزال نشطة — تحمي المركز فعلياً هذه اللحظة
-            state = OPEN
+            state = OPEN                 # لا تزال نشطة وتحمي المركز
         else:
             state = CONFIRMED
 
