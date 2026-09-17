@@ -27,6 +27,9 @@ from ..risk.portfolio import PortfolioRisk
 
 SUPPORTED_ASSETS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']
 
+# البند 11: أصل مؤهَّل بالإشارة لكن يستحيل تحجيمه بالحساب الحالي
+R_NOT_SIZEABLE = 'NOT_TRADEABLE_WITH_CURRENT_ACCOUNT'
+
 
 @dataclass
 class ScoreWeights:
@@ -243,8 +246,33 @@ def scan_and_rank(symbols: List[str], *, engines: Dict[str, SignalEngine],
                 est = notional_estimates.get(best.symbol)
             else:
                 est = notional_fn(best.symbol, best.signal)
-            if est is None or est <= 0:
+            if est is None:
+                # لا تقدير حجم متاح أصلاً (لا `notional_fn` ولا قيمة
+                # لهذا الرمز) — يُتخطّى الفحص صراحةً كما هو موثَّق أعلاه.
                 break
+
+            if est <= 0:
+                # ⚠️ إصلاح (البند 11): `est <= 0` تعني أن `PositionSizer`
+                # رفض تحجيم هذا الأصل — رصيد غير كافٍ، أو حد أدنى للمنصة
+                # يتجاوز المخاطرة، أو حساب غير متاح. كان `break` هنا
+                # يُبقيه **فائزاً بالمسح** رغم استحالة تداوله، فتفشل
+                # الصفقة لاحقاً في خطوة التحجيم ويُرجع النظام NO_TRADE —
+                # بينما مرشَّح قابل للتداول فعلاً كان متاحاً في القائمة.
+                #
+                # المواصفة صريحة: «An asset that cannot actually be traded
+                # with the current account must not be selected as the best
+                # opportunity.» فيُستبعَد ويُجرَّب التالي، تماماً كما في
+                # رفض المحفظة أدناه.
+                best.eligible = False
+                best.rejection_reasons.append(R_NOT_SIZEABLE)
+                eligible = [o for o in eligible if o.symbol != best.symbol]
+                if not eligible:
+                    return RankingResult(
+                        decision='NO_TRADE', opportunities=opportunities,
+                        reason=R_NOT_SIZEABLE)
+                best = eligible[0]
+                continue
+
             exp = portfolio.evaluate(equity=equity, open_notional=open_notional or {},
                                      new_symbol=best.symbol, new_notional=est,
                                      price_series=price_series)
