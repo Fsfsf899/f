@@ -128,3 +128,61 @@ class Test02_NoRegression(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class Test03_PerCandidateSizingIsVisible(unittest.TestCase):
+    """
+    البند 13: «for every candidate ... SIZING DECISION, REJECTION REASON».
+    بلا هذا يبقى `NOT_TRADEABLE_WITH_CURRENT_ACCOUNT` وسماً غامضاً:
+    يعرف المستخدم أن الأصل استُبعِد ولا يعرف أي حدّ منعه.
+    """
+
+    def test_every_eligible_candidate_gets_an_estimate(self):
+        r = _scan({'BTCUSDT': (50000.0, 9.0), 'ETHUSDT': (3000.0, 7.0)},
+                  lambda s, sig: 200.0)
+        for o in r.opportunities:
+            if o.eligible:
+                self.assertIsNotNone(o.notional_estimate,
+                                     f'{o.symbol} بلا تقدير حجم')
+
+    def test_reason_is_carried_when_fn_returns_a_tuple(self):
+        def fn(s, sig):
+            if s == 'BTCUSDT':
+                return 0.0, 'EXCHANGE_MINIMUM_EXCEEDS_RISK_LIMIT'
+            return 200.0, 'OK'
+
+        r = _scan({'BTCUSDT': (50000.0, 9.0), 'ETHUSDT': (3000.0, 7.0)}, fn)
+        btc = next(o for o in r.opportunities if o.symbol == 'BTCUSDT')
+        self.assertEqual(btc.sizing_reason, 'EXCHANGE_MINIMUM_EXCEEDS_RISK_LIMIT')
+        self.assertTrue(any('EXCHANGE_MINIMUM' in x
+                            for x in btc.rejection_reasons),
+                        'السبب لم يصل إلى أسباب الرفض')
+
+    def test_plain_float_return_still_works(self):
+        """توافق خلفي: دالة تُرجع رقماً فقط تبقى صالحة."""
+        r = _scan({'BTCUSDT': (50000.0, 9.0), 'ETHUSDT': (3000.0, 7.0)},
+                  lambda s, sig: 200.0)
+        self.assertEqual(r.decision, 'BUY')
+
+    def test_estimates_appear_in_the_audit_dict(self):
+        """سجل المسح يُخزَّن في القاعدة — فالحقول يجب أن تصل إليه."""
+        r = _scan({'BTCUSDT': (50000.0, 9.0), 'ETHUSDT': (3000.0, 7.0)},
+                  lambda s, sig: 200.0)
+        d = r.to_dict()
+        rows = d['alternatives'] + ([] if not d['selected_symbol'] else [])
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertIn('notional_estimate', row)
+            self.assertIn('sizing_reason', row)
+
+    def test_broken_sizer_does_not_crash_the_scan(self):
+        """مُقدِّر حجم معطوب يُستبعِد رمزه فقط، لا يُسقط المسح كله."""
+        def fn(s, sig):
+            if s == 'BTCUSDT':
+                raise RuntimeError('boom')
+            return 200.0
+
+        r = _scan({'BTCUSDT': (50000.0, 9.0), 'ETHUSDT': (3000.0, 7.0)}, fn)
+        self.assertEqual(r.selected_symbol, 'ETHUSDT')
+        btc = next(o for o in r.opportunities if o.symbol == 'BTCUSDT')
+        self.assertIn('SIZING_ERROR', btc.sizing_reason)

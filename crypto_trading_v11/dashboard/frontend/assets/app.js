@@ -436,6 +436,13 @@ PAGES.opportunity = async () => {
      render: (r) => (r.signal ? price(r.signal.take_profit) : NA) },
     { label: 'R:R', num: true,
      render: (r) => (r.signal ? num(r.signal.risk_reward, 2) : NA) },
+    // البند 13: قرار المال لكل مرشَّح لا للفائز وحده. بلا هذين العمودين
+    // يبقى سبب NOT_TRADEABLE_WITH_CURRENT_ACCOUNT وسماً غامضاً.
+    { label: 'الحجم المُقدَّر', num: true,
+     render: (r) => (isNil(r.notional_estimate) ? NA : money(r.notional_estimate)) },
+    { label: 'قرار التحجيم', render: (r) => (!r.sizing_reason ? NA
+        : badge(r.sizing_reason === 'OK' ? 'OK' : r.sizing_reason,
+                r.sizing_reason === 'OK' ? 'on' : 'off')) },
     { label: 'القرار النهائي', render: (r) => (r.symbol === last.selected_symbol
         ? badge('SELECTED', 'buy')
         : (r.eligible ? badge('NOT BEST', 'wait') : badge('REJECTED', 'off'))) },

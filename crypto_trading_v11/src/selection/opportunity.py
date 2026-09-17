@@ -79,6 +79,11 @@ class OpportunityScore:
     rejection_reasons: List[str] = field(default_factory=list)
     signal: Optional[Signal] = None
     components: Dict[str, float] = field(default_factory=dict)
+    # البند 13: قرار المال لكل مرشَّح، لا للفائز وحده. بلا هذين الحقلين
+    # يبقى سبب `NOT_TRADEABLE_WITH_CURRENT_ACCOUNT` غامضاً: يعرف
+    # المستخدم أن الأصل استُبعِد ولا يعرف أي حدّ منعه.
+    notional_estimate: Optional[float] = None
+    sizing_reason: str = ''
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -86,6 +91,9 @@ class OpportunityScore:
             'decision': self.decision, 'score': round(self.score, 2),
             'rejection_reasons': list(self.rejection_reasons),
             'components': {k: round(v, 4) for k, v in self.components.items()},
+            'notional_estimate': (None if self.notional_estimate is None
+                                  else round(self.notional_estimate, 6)),
+            'sizing_reason': self.sizing_reason,
             'signal': self.signal.to_dict() if self.signal else None,
         }
 
@@ -119,6 +127,24 @@ def _score_signal(sig: Signal, weights: ScoreWeights) -> Dict[str, float]:
     if has_prob:
         parts['probability'] = float(sig.calibrated_probability) * w['probability']
     return parts
+
+
+
+def _call_notional_fn(fn, symbol: str, signal):
+    """
+    `notional_fn` قد تُرجع رقماً، أو `(رقم, سبب)` حين تعرف **لماذا**
+    رُفض التحجيم. الشكل الثاني اختياري تماماً — التوافق الخلفي كامل —
+    لكنه ما يجعل `NOT_TRADEABLE_WITH_CURRENT_ACCOUNT` مفهوماً بدل أن
+    يكون وسماً غامضاً.
+    """
+    try:
+        out = fn(symbol, signal)
+    except Exception as e:              # مُقدِّر حجم معطوب لا يُسقط المسح كله
+        return 0.0, f'SIZING_ERROR:{type(e).__name__}'
+    if isinstance(out, tuple):
+        est = out[0]
+        return est, (out[1] if len(out) > 1 else '')
+    return out, ''
 
 
 def evaluate_opportunity(symbol: str, engine: SignalEngine, data, idx: int, *,
@@ -240,12 +266,21 @@ def scan_and_rank(symbols: List[str], *, engines: Dict[str, SignalEngine],
     # لا يُنفَّذ إلا إن توفَّر تقدير حجم حقيقي — تمرير صفر ضمني كان
     # سيجعل الفحص "يمر دائماً" بصرف النظر عن الحد المُعرَّف، وهذا
     # أسوأ من تخطّيه بوضوح.
+    # ── البند 13: يُحجَّم **كل** مرشَّح مؤهَّل مرة واحدة، لا الفائز وحده.
+    # الحساب مرة واحدة لكل رمز (أربعة على الأكثر) ويُخزَّن على المرشَّح،
+    # فيراه المستخدم في سجل المسح ولا يُعاد حسابه في حلقة الاختيار.
+    if notional_estimates or notional_fn:
+        for o in eligible:
+            if notional_estimates:
+                est, why = notional_estimates.get(o.symbol), ''
+            else:
+                est, why = _call_notional_fn(notional_fn, o.symbol, o.signal)
+            o.notional_estimate = est
+            o.sizing_reason = why or ('OK' if est and est > 0 else '')
+
     if portfolio is not None and equity > 0 and (notional_estimates or notional_fn):
         while True:
-            if notional_estimates:
-                est = notional_estimates.get(best.symbol)
-            else:
-                est = notional_fn(best.symbol, best.signal)
+            est = best.notional_estimate
             if est is None:
                 # لا تقدير حجم متاح أصلاً (لا `notional_fn` ولا قيمة
                 # لهذا الرمز) — يُتخطّى الفحص صراحةً كما هو موثَّق أعلاه.
@@ -264,7 +299,9 @@ def scan_and_rank(symbols: List[str], *, engines: Dict[str, SignalEngine],
                 # opportunity.» فيُستبعَد ويُجرَّب التالي، تماماً كما في
                 # رفض المحفظة أدناه.
                 best.eligible = False
-                best.rejection_reasons.append(R_NOT_SIZEABLE)
+                detail = best.sizing_reason or ''
+                best.rejection_reasons.append(
+                    f'{R_NOT_SIZEABLE}:{detail}' if detail else R_NOT_SIZEABLE)
                 eligible = [o for o in eligible if o.symbol != best.symbol]
                 if not eligible:
                     return RankingResult(

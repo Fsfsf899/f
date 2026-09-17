@@ -634,8 +634,10 @@ class LiveTrader:
                 min_notional=rules.get('min_notional', 10.0),
                 fee_rate=self.cfg.costs.taker_fee)
             if sz.get('blocked') or sz['notional'] <= 0:
-                return 0.0
-            return min(sz['notional'], self.max_notional)
+                # يُعاد السبب مع الصفر — فيعرف المستخدم أي حدّ منع هذا
+                # الأصل بالذات، لا مجرّد أنه استُبعِد (البند 13).
+                return 0.0, str(sz.get('reason') or 'SIZING_BLOCKED')
+            return min(sz['notional'], self.max_notional), 'OK'
 
         open_notional = {p['symbol']: p['qty'] * p['entry_price']
                         for p in open_pos
