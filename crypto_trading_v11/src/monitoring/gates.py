@@ -97,10 +97,33 @@ def _mismatches(db) -> int:
 
 
 def _runtime_days(db) -> float:
-    st = db.get_kv('run_started_ts') or db.get_kv('paper_started_ts')
-    if not st:
-        return 0.0
-    return (int(time.time() * 1000) - int(st)) / 86_400_000
+    """
+    أيام **نشاط فعلي**، لا زمن حائط منذ أول إقلاع.
+
+    ⚠️ إصلاح (المراجعة النهائية): كانت تحسب
+    `(الآن - run_started_ts) / يوم` — فنظام أُقلع مرة وعمل عشر دقائق ثم
+    تُرك، يُبلِّغ عن **14 يوم تشغيل** بعد أسبوعين من الخمول. أي أن شرط
+    «شغّله N يوماً» كان يتحوّل إلى «اترك القاعدة موجودة N يوماً»، وهو
+    أهم شرط كمّي في بوابة الترقية.
+
+    `daily_equity` يحمل صفاً لكل يوم استدعيت فيه `tick()` فعلياً
+    (عبر `start_day`) — فعدّ صفوفه هو قياس النشاط الحقيقي.
+    """
+    rows = db.query('SELECT COUNT(*) c FROM daily_equity')
+    return float(rows[0]['c']) if rows else 0.0
+
+
+def _starting_equity(db):
+    """حقوق بداية أول يوم تشغيل — أساس حساب الانخفاض الحقيقي."""
+    r = db.query('SELECT starting_equity FROM daily_equity '
+                 'WHERE starting_equity IS NOT NULL ORDER BY day LIMIT 1')
+    if not r:
+        return None
+    try:
+        v = float(r[0]['starting_equity'])
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
 
 
 def _exit_reasons(db) -> set:
@@ -143,20 +166,33 @@ def evaluate(db, gate_name: str, criteria: Optional[GateCriteria] = None,
     ck.append(Check('no_duplicate_orders', do <= c.max_duplicate_orders, f"{do}"))
     ck.append(Check('no_duplicate_fills', df <= c.max_duplicate_fills, f"{df}"))
 
+    # ⚠️ إصلاح (المراجعة النهائية): كان الانخفاض يُحسَب على أساس
+    # **اصطناعي** `2×مجموع|الأرباح| + 1` بدل حقوق الحساب الحقيقية.
+    # الأثر ليس تجميلياً: مع ربح كبير سابق يتضخّم الأساس فيصغر الانخفاض
+    # المُبلَّغ. قياس فعلي: انخفاض حقيقي 45.00% يظهر 18.75% — أي أن
+    # حالات كان يجب أن تُرفَض كانت تمرّ من بوابة الترقية.
+    #
+    # الحقوق الحقيقية متاحة في `daily_equity.starting_equity`. وإن
+    # غابت، **يفشل الفحص** بدل اختراع أساس — لا رقم مُطمئِن بلا سند.
+    cap = _starting_equity(db)
+    dd = 0.0
+    dd_known = True
     if trades:
         import numpy as np
-        pnl = np.array([t['pnl'] for t in trades if t.get('pnl') is not None])
+        pnl = np.array([t['pnl'] for t in trades if t.get('pnl') is not None],
+                       dtype=float)
         if len(pnl):
-            base = float(np.abs(pnl).sum()) * 2 + 1.0
-            eq = base + np.cumsum(pnl)
-            peak = np.maximum.accumulate(eq)
-            dd = float((np.maximum(peak - eq, 0) / np.maximum(peak, 1e-9) * 100).max())
-        else:
-            dd = 0.0
-    else:
-        dd = 0.0
-    ck.append(Check('max_drawdown', dd <= c.max_drawdown_pct,
-                    f"{dd:.2f}% / {c.max_drawdown_pct}%"))
+            if cap is None:
+                dd_known = False
+            else:
+                eq = np.concatenate([[cap], cap + np.cumsum(pnl)])
+                peak = np.maximum.accumulate(eq)
+                dd = float((np.maximum(peak - eq, 0)
+                            / np.maximum(peak, 1e-9) * 100).max())
+    ck.append(Check('max_drawdown',
+                    dd_known and dd <= c.max_drawdown_pct,
+                    (f"{dd:.2f}% / {c.max_drawdown_pct}%" if dd_known
+                     else 'حقوق البداية غير مسجَّلة — لا يمكن حساب الانخفاض')))
 
     n_orders = len(db.query('SELECT 1 FROM orders'))
     n_fills = len(db.query('SELECT 1 FROM fills'))
