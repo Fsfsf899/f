@@ -7,11 +7,13 @@
 و MAE/MFE. توصية بفوز 70% ومتوسط خسارة ضِعف متوسط الربح خاسرة.
 """
 import numpy as np
+
+from ..backtest.metrics import drawdown_from_pnl
 from typing import List, Dict, Optional
 from ..storage.database import Database
 
 
-def _stats(rows: List[Dict]) -> Dict:
+def _stats(rows: List[Dict], starting_equity=None) -> Dict:
     if not rows:
         return {'n': 0}
     pnl = np.array([r['pnl'] for r in rows if r.get('pnl') is not None], float)
@@ -29,22 +31,47 @@ def _stats(rows: List[Dict]) -> Dict:
         'net_pnl': round(float(pnl.sum()), 2),
         'avg_win': round(float(w.mean()), 2) if len(w) else 0.0,
         'avg_loss': round(float(l.mean()), 2) if len(l) else 0.0,
-        'max_drawdown_pct': round(_dd(pnl), 3),
+        'max_drawdown_pct': (None if _dd(pnl, starting_equity) is None
+                             else round(_dd(pnl, starting_equity), 3)),
         'avg_mae_pct': round(float(np.mean(mae)), 3) if mae else None,
         'avg_mfe_pct': round(float(np.mean(mfe)), 3) if mfe else None,
         'reliable': len(pnl) >= 30,
     }
 
 
-def _dd(pnl: np.ndarray) -> float:
-    eq = np.cumsum(pnl)
-    peak = np.maximum.accumulate(np.maximum(eq, 0) + 1e-9)
-    return float((np.maximum(peak - eq, 0) / peak * 100).max()) if len(eq) else 0.0
+def _dd(pnl, starting_equity=None):
+    """
+    ⚠️ إصلاح (المراجعة النهائية): كان يُحسَب على منحنى يبدأ من **صفر**
+    مع قمة `max(eq,0)+1e-9`. النتيجة عند بدء السلسلة بخسارة: القسمة
+    على `1e-9` تُنتج نسباً بالتريليونات. قياس فعلي لسلسلة `[-100, +50]`
+    برأس مال 1000: الانخفاض الحقيقي **10%**، والمُبلَّغ
+    **1.0e+13 %**.
+
+    (وهي المشكلة نفسها التي يقول تعليق `paper_report` إنه عالجها —
+    عولجت هناك بأساس اصطناعي وبقيت هنا كما هي.)
+
+    التطبيق الكنسي الآن في `backtest.metrics`، و`None` عند غياب رأس
+    المال بدل رقم بلا معنى.
+    """
+    return drawdown_from_pnl(pnl, starting_equity)
 
 
 class AccuracyTracker:
     def __init__(self, db: Database):
         self.db = db
+
+    def _starting_equity(self):
+        """حقوق بداية أول يوم تشغيل؛ غيابها ⇒ الانخفاض غير معلوم."""
+        r = self.db.query('SELECT starting_equity FROM daily_equity '
+                          'WHERE starting_equity IS NOT NULL '
+                          'ORDER BY day LIMIT 1')
+        if not r:
+            return None
+        try:
+            v = float(r[0]['starting_equity'])
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
 
     def _closed(self, symbol: Optional[str] = None) -> List[Dict]:
         sql = """SELECT r.*, s.stars, s.score, s.market_regime, s.interval,
@@ -62,13 +89,15 @@ class AccuracyTracker:
             return {'overall': {'n': 0},
                     'note': 'لا توصيات مغلقة بعد — لا يمكن قياس الدقة'}
 
+        cap = self._starting_equity()
+
         def group(key_fn) -> Dict:
             buckets: Dict[str, List[Dict]] = {}
             for r in rows:
                 k = key_fn(r)
                 if k is None: continue
                 buckets.setdefault(str(k), []).append(r)
-            return {k: _stats(v) for k, v in sorted(buckets.items())}
+            return {k: _stats(v, cap) for k, v in sorted(buckets.items())}
 
         def prob_bucket(r):
             p = r.get('calibrated_probability') or r.get('raw_probability')
@@ -81,7 +110,7 @@ class AccuracyTracker:
             return None if not t else f"{int((t // 3600000) % 24):02d}:00"
 
         return {
-            'overall': _stats(rows),
+            'overall': _stats(rows, cap),
             'by_symbol': group(lambda r: r.get('symbol')),
             'by_interval': group(lambda r: r.get('interval')),
             'by_regime': group(lambda r: r.get('market_regime')),

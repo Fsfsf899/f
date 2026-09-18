@@ -240,11 +240,26 @@ class Test02b_OCO(unittest.TestCase):
 
 class Test02c_Drawdown(unittest.TestCase):
     def test_drawdown_bounded(self):
-        """قمة قريبة من الصفر كانت تُنتج نسباً بالتريليونات."""
+        """
+        قمة قريبة من الصفر كانت تُنتج نسباً بالتريليونات.
+
+        ⚠️ حُدِّث بعد توحيد حساب الانخفاض (المراجعة النهائية): الانخفاض
+        يُحسَب الآن من حقوق الحساب الحقيقية، فبلا رأس مال يكون **غير
+        معلوم** (`None`) بدل رقم مبنيّ على أساس اصطناعي. نيّة الاختبار
+        الأصلية — ألّا يخرج الرقم عن النطاق — محفوظة ومُختبَرة بكلا
+        الحالتين.
+        """
         from src.monitoring.paper_report import _agg
+        CAP = 1000.0
         for pnls in ([-38.5], [-100, 50, -30], [10, -5, 8], [-1e-9, 1e-9]):
             rows = [{'pnl': p, 'holding_bars': 1} for p in pnls]
-            dd = _agg(rows)['max_drawdown_pct']
+
+            # بلا رأس مال: غير معلوم صراحةً، لا رقم مُختلَق
+            self.assertIsNone(_agg(rows)['max_drawdown_pct'],
+                              f'رقم بلا سند لـ {pnls}')
+
+            # برأس مال: ضمن النطاق دائماً
+            dd = _agg(rows, CAP)['max_drawdown_pct']
             self.assertGreaterEqual(dd, 0.0)
             self.assertLessEqual(dd, 100.0, f'تراجع خارج النطاق: {dd} لـ {pnls}')
 

@@ -8,11 +8,13 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import numpy as np
 
+from ..backtest.metrics import drawdown_from_pnl
+
 MIN_SAMPLE = 30
 WARN = 'INSUFFICIENT SAMPLE — لا يمكن استنتاج الربحية'
 
 
-def _agg(rows: List[Dict]) -> Dict:
+def _agg(rows: List[Dict], starting_equity=None) -> Dict:
     if not rows:
         return {'n': 0}
     pnl = np.array([r['pnl'] for r in rows if r.get('pnl') is not None], float)
@@ -20,13 +22,14 @@ def _agg(rows: List[Dict]) -> Dict:
         return {'n': len(rows)}
     w, l = pnl[pnl > 0], pnl[pnl < 0]
     gp, gl = float(w.sum()), float(abs(l.sum()))
-    # التراجع يُقاس على منحنى حقوق يبدأ من رأس مال مرجعي، لا من صفر.
-    # القسمة على قمة قريبة من الصفر كانت تُنتج نسباً بالتريليونات.
-    base = float(np.abs(pnl).sum()) * 2 + 1.0
-    eq = base + np.cumsum(pnl)
-    peak = np.maximum.accumulate(eq)
-    dd = float((np.maximum(peak - eq, 0) / np.maximum(peak, 1e-9) * 100).max()) \
-        if len(eq) else 0.0
+    # ⚠️ إصلاح (المراجعة النهائية): كان الأساس اصطناعياً
+    # (`2×مجموع|الأرباح|+1`) بدل حقوق الحساب الحقيقية. التعليق السابق
+    # كان محقاً في تشخيص المشكلة (القسمة على قمة قرب الصفر تُنتج نسباً
+    # بالتريليونات) لكن علاجه أدخل تشويهاً معاكساً: انخفاض حقيقي 10%
+    # كان يظهر **0.00%**، و2% يظهر 32.26%.
+    # الحلّ الكنسي في `backtest.metrics.drawdown_from_pnl` — حقوق
+    # حقيقية، و`None` عند غيابها بدل رقم مُختلَق.
+    dd = drawdown_from_pnl(pnl, starting_equity)
     hold = [r['holding_bars'] for r in rows if r.get('holding_bars')]
     mae = [r['mae_pct'] for r in rows if r.get('mae_pct') is not None]
     mfe = [r['mfe_pct'] for r in rows if r.get('mfe_pct') is not None]
@@ -38,7 +41,7 @@ def _agg(rows: List[Dict]) -> Dict:
         'expectancy': round(float(pnl.mean()), 4),
         'avg_win': round(float(w.mean()), 4) if len(w) else 0.0,
         'avg_loss': round(float(l.mean()), 4) if len(l) else 0.0,
-        'max_drawdown_pct': round(dd, 3),
+        'max_drawdown_pct': (None if dd is None else round(dd, 3)),
         'avg_holding_bars': round(float(np.mean(hold)), 1) if hold else None,
         'avg_mae_pct': round(float(np.mean(mae)), 3) if mae else None,
         'avg_mfe_pct': round(float(np.mean(mfe)), 3) if mfe else None,
@@ -57,6 +60,22 @@ class PaperReport:
                    s.calibrated_probability, s.raw_probability
             FROM recommendations r LEFT JOIN signals s ON r.signal_id = s.id
             WHERE r.outcome IS NOT NULL AND r.acted = 1""")
+
+    def _starting_equity(self):
+        """
+        حقوق بداية أول يوم تشغيل — أساس الانخفاض الحقيقي. غيابها يعني
+        أن الانخفاض **غير معلوم**، ويُبلَّغ `None` بدل رقم مُختلَق.
+        """
+        r = self.db.query('SELECT starting_equity FROM daily_equity '
+                          'WHERE starting_equity IS NOT NULL '
+                          'ORDER BY day LIMIT 1')
+        if not r:
+            return None
+        try:
+            v = float(r[0]['starting_equity'])
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
 
     def _costs(self) -> Dict:
         """التكاليف الفعلية من التعبئات المسجَّلة، لا من تقدير."""
@@ -82,16 +101,23 @@ class PaperReport:
             except Exception:
                 pass
 
+        cap = self._starting_equity()
+
         def group(fn):
             b: Dict[str, List[Dict]] = {}
             for r in rows:
                 k = fn(r)
                 if k is not None:
                     b.setdefault(str(k), []).append(r)
-            return {k: _agg(v) for k, v in sorted(b.items())}
+            return {k: _agg(v, cap) for k, v in sorted(b.items())}
 
-        started = self.db.get_kv('paper_started_ts') or self.db.get_kv('run_started_ts')
-        days = ((int(time.time() * 1000) - int(started)) / 86_400_000) if started else 0.0
+        # ⚠️ إصلاح (المراجعة النهائية): كانت `runtime_days` تقيس زمن
+        # الحائط منذ أول إقلاع — فنظام عمل عشر دقائق ثم تُرك يُبلِّغ عن
+        # 14 يوم تشغيل بعد أسبوعين خمول. نفس البق أُصلح في
+        # `gates._runtime_days`؛ وتركه هنا كان سيجعل التقرير يناقض
+        # البوابة على نفس القاعدة.
+        day_rows = self.db.query('SELECT COUNT(*) c FROM daily_equity')
+        days = float(day_rows[0]['c']) if day_rows else 0.0
 
         unknown = len([r for r in self.db.query(
             "SELECT state FROM order_intents") if r['state'] in
@@ -110,7 +136,7 @@ class PaperReport:
             'n_buy_signals': len([s for s in sigs if s['decision'] == 'BUY']),
             'n_trades': len(rows),
             'rejected_reasons': dict(sorted(blocked.items(), key=lambda x: -x[1])[:12]),
-            'overall': _agg(rows),
+            'overall': _agg(rows, cap),
             'costs': self._costs(),
             'by_symbol': group(lambda r: r.get('symbol')),
             'by_regime': group(lambda r: r.get('market_regime')),
@@ -136,7 +162,8 @@ class PaperReport:
                 continue
             d = datetime.fromtimestamp(int(ts) / 1000, timezone.utc).strftime('%Y-%m-%d')
             by_day.setdefault(d, []).append(r)
-        return [{'day': d, **_agg(v)} for d, v in sorted(by_day.items())]
+        return [{'day': d, **_agg(v, self._starting_equity())}
+                for d, v in sorted(by_day.items())]
 
     def render(self) -> str:
         f = self.full()

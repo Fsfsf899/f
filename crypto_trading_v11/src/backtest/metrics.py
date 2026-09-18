@@ -11,6 +11,51 @@ from ..data.types import INTERVAL_MS
 MS_YEAR = 365 * 86_400_000
 
 
+
+def max_drawdown_pct(equity) -> float:
+    """
+    أقصى انخفاض من منحنى حقوق **حقيقي**. هذا هو التطبيق الكنسي الوحيد
+    في المشروع.
+
+    ⚠️ سبب وجوده: كان الانخفاض يُحسَب في **أربعة** مواضع بأربع طرق
+    مختلفة تُعطي إجابات متباينة لنفس الصفقات. قياس فعلي برأس مال 1000:
+
+        الصفقات            الحقيقي   paper_report      accuracy
+        أرباح ثم انهيار     45.00%       18.75%        9.0e+01%
+        خسارة أولاً         10.00%        0.00%        1.0e+13%
+        خسائر صغيرة          2.00%       32.26%        2.0e+12%
+
+    فمستخدم يقرأ `report` و`gate` والباكتست يحصل على ثلاثة أرقام
+    مختلفة لنفس التشغيل.
+    """
+    eq = np.asarray(equity, dtype=float)
+    if eq.size == 0:
+        return 0.0
+    peak = np.maximum.accumulate(eq)
+    dd = np.where(peak > 0, (peak - eq) / peak * 100.0, 0.0)
+    return float(dd.max())
+
+
+def drawdown_from_pnl(pnl, starting_equity) -> Optional[float]:
+    """
+    الانخفاض من سلسلة أرباح ورأس مال ابتدائي.
+
+    `starting_equity` غير صالح ⇒ **`None`**، لا أساس مُختلَق. رقم
+    مُطمئِن بلا سند أسوأ من الاعتراف بالجهل — وهذا بالضبط ما فعلته
+    الأسس الاصطناعية السابقة.
+    """
+    arr = np.asarray(list(pnl), dtype=float)
+    if arr.size == 0:
+        return 0.0
+    try:
+        cap = float(starting_equity)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(cap) or cap <= 0:
+        return None
+    eq = np.concatenate([[cap], cap + np.cumsum(arr)])
+    return max_drawdown_pct(eq)
+
 def bars_per_year(interval: str) -> float:
     """الكريبتو يتداول 24/7 — 365 يوماً لا 252."""
     return MS_YEAR / INTERVAL_MS[interval]

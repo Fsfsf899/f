@@ -174,21 +174,18 @@ def evaluate(db, gate_name: str, criteria: Optional[GateCriteria] = None,
     #
     # الحقوق الحقيقية متاحة في `daily_equity.starting_equity`. وإن
     # غابت، **يفشل الفحص** بدل اختراع أساس — لا رقم مُطمئِن بلا سند.
+    from ..backtest.metrics import drawdown_from_pnl
     cap = _starting_equity(db)
     dd = 0.0
     dd_known = True
     if trades:
-        import numpy as np
-        pnl = np.array([t['pnl'] for t in trades if t.get('pnl') is not None],
-                       dtype=float)
-        if len(pnl):
-            if cap is None:
+        pnl = [t['pnl'] for t in trades if t.get('pnl') is not None]
+        if pnl:
+            got = drawdown_from_pnl(pnl, cap)
+            if got is None:
                 dd_known = False
             else:
-                eq = np.concatenate([[cap], cap + np.cumsum(pnl)])
-                peak = np.maximum.accumulate(eq)
-                dd = float((np.maximum(peak - eq, 0)
-                            / np.maximum(peak, 1e-9) * 100).max())
+                dd = got
     ck.append(Check('max_drawdown',
                     dd_known and dd <= c.max_drawdown_pct,
                     (f"{dd:.2f}% / {c.max_drawdown_pct}%" if dd_known
