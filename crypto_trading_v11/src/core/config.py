@@ -91,6 +91,63 @@ class SignalConfig:
 
 
 @dataclass
+class AdaptiveConfig:
+    """
+    إدارة الصفقة التكيّفية — Part B من مواصفة V11 FINAL.
+
+    طبقة **إدارة** لا استراتيجية دخول: لا تلمس شروط الدخول إطلاقاً،
+    وإنما تدير المركز بعد فتحه (تعادل، تتبّع، هدف تكيّفي، ركود).
+
+    معطَّلة افتراضياً (`enabled=False`) كعادة كل إضافة سلوكية في هذا
+    المشروع — تفعيلها يغيّر نتائج الباكتست، فيجب أن يكون قراراً صريحاً
+    مع إعادة تحقّق، لا سلوكاً يتسلّل مع ترقية.
+
+    ⚠️ لا تُكرَّر هنا إعدادات لها نظير قائم (البند 37). التتبّع يستخدم
+    `SignalConfig.trailing_atr_mult` و`trailing_activate_at_r`
+    الموجودَين أصلاً. المواصفة تسمّيهما بالنسبة المئوية
+    (TRAILING_ACTIVATION_PCT)، والمشروع يقيسهما بوحدات R — وهي
+    مقياس مُطبَّع بالمخاطرة وأدق؛ أبقينا القائم وفق البند 38.
+    """
+    enabled: bool = False
+
+    # ── تثبيت حالة السوق (Part C البند 1) ──
+    # الحالة لا تُعتمد إلا بعد تكرارها هذا العدد من الشمعات متتالية،
+    # ولا تُستبدَل قبل مرور حد أدنى من العمر. بدون هذا يتذبذب القرار
+    # مع كل شمعة فيتحرك الوقف ذهاباً وإياباً بلا معنى.
+    regime_confirmation_candles: int = 3
+    regime_min_duration: int = 3
+
+    # ── التعادل الصافي (البند 9) ──
+    break_even_enabled: bool = True
+    break_even_trigger_r: float = 1.0     # لا تعادل قبل تحقق هذا الـ R
+    break_even_buffer_pct: float = 0.05   # ربح صافٍ أدنى فوق نقطة التعادل
+
+    # ── أدنى تحسّن يستحق أمراً جديداً ──
+    # نقطة التعادل الصافية تعتمد على انزلاق الوقف، وهو يتبع تقلّب
+    # الشمعة — فتتذبذب بنحو ٠٫٣٪ من سعر الدخول بين شمعة وأخرى. بلا
+    # هذه العتبة يُترجَم كل فرق موجب ضئيل إلى إلغاء OCO ووضع آخر:
+    # استهلاك لحدود المعدّل، وفتح نافذة انكشاف جديدة، مقابل حماية
+    # إضافية لا تُذكر.
+    min_stop_move_pct: float = 0.10
+
+    # ── الهدف التكيّفي (البنود 6 و7 و19 و20) ──
+    adaptive_tp_enabled: bool = True
+    range_tp_min_pct: float = 1.0
+    range_tp_max_pct: float = 1.5
+    # هامش أمان قبل المقاومة — بوحدات ATR لا نسبة ثابتة (البند 13)
+    resistance_buffer_atr: float = 0.25
+    # لا يُقبل تعديل هدف يهبط بالعائد/المخاطرة الصافي تحت هذا (البند 20)
+    min_adaptive_rr: float = 1.0
+
+    # ── حارس الركود (البنود 15-18) ──
+    stagnation_enabled: bool = True
+    max_trade_duration_hours: float = 24.0
+    stagnation_check_interval: int = 1    # بالشمعات
+    min_progress_pct: float = 0.30        # تقدّم السعر المطلوب
+    min_mfe_pct: float = 0.50             # أقصى ربح عائم مطلوب
+
+
+@dataclass
 class NoTradeConfig:
     min_data_quality: float = 0.80
     max_spread_bps: float = 15.0
@@ -123,6 +180,13 @@ class RiskConfig:
     min_cash_reserve_quote: float = 0.0
     # أقصى عمر مقبول للقطة الرصيد قبل رفض التحجيم (ACCOUNT_BALANCE_STALE)
     max_balance_age_s: float = 60.0
+
+    # ── تبريد ما بعد الخروج (Part C البند 4) ──
+    # بعد وقف أو خروج ركود، الشرط الذي أخرجنا غالباً ما يزال قائماً؛
+    # الدخول فوراً يعيد الصفقة نفسها بنفس الظرف. صفر = معطَّل تماماً
+    # (السلوك السابق حرفياً)، فلا تتغيّر أي نتيجة باكتست تاريخية.
+    post_exit_cooldown_bars: int = 0
+    post_exit_cooldown_reasons: tuple = ('STOP_LOSS', 'STAGNATION_EXIT')
 
 
 @dataclass
@@ -222,6 +286,7 @@ class Config:
     breakout: BreakoutConfig = field(default_factory=BreakoutConfig)
     pullback: PullbackConfig = field(default_factory=PullbackConfig)
     mtf_entry: MTFEntryConfig = field(default_factory=MTFEntryConfig)
+    adaptive: AdaptiveConfig = field(default_factory=AdaptiveConfig)
     validation: ValidationConfig = field(default_factory=ValidationConfig)
     data: DataConfig = field(default_factory=DataConfig)
     version: str = STRATEGY_VERSION

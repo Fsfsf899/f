@@ -114,6 +114,8 @@ export const api = {
   account:              ()  => get('/account', null, TTL.live),
   sizingPlan:           (p) => get('/sizing-plan', p, TTL.live),
   sizingPlans:          (p) => get('/sizing-plans', p, TTL.live),
+  tradeManagement:      (p) => get('/trade-management', p, TTL.live),
+  tradeDecisions:       (p) => get('/trade-decisions', p, TTL.live),
 };
 
 export function clearCache(prefix) {

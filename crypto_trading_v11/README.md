@@ -156,6 +156,33 @@ cfg.breakout.enabled = True     # أو
 cfg.pullback.enabled = True
 ```
 
+## إدارة الصفقة التكيّفية (V11 Part B)
+
+طبقة **إدارة بعد الدخول** — لا تلمس شروط الدخول إطلاقاً. أربع وظائف:
+تعادل صافٍ بعد التكاليف، تتبّع بـ ATR، هدف تكيّفي عند المقاومة أو في
+السوق العرضي، وحارس ركود.
+
+معطَّلة افتراضياً (`cfg.adaptive.enabled = False`). التفعيل:
+
+```python
+cfg.adaptive.enabled = True
+cfg.signal.trailing_stop_enabled = True   # التتبّع منفصل، معطَّل أيضاً
+```
+
+⚠️ **أثرها على الربحية غير مُثبَت**، وتشغيل Walk-Forward على بيانات
+اصطناعية يسقط في بوابة الاتساق (٠٫٤٢٩ < ٠٫٧٠). التفاصيل والأرقام في
+`V11_ADAPTIVE_TRADE_MANAGEMENT_BACKTEST_REPORT.md` والتدقيق في
+`V11_ADAPTIVE_TRADE_MANAGEMENT_AUDIT.md`.
+
+⚠️ **نقل الوقف لم يُنفَّذ على منصة حقيقية قط** — مُتحقَّق منه عبر
+`PaperBroker` فقط. الحالة: `PAPER VERIFIED / LIVE NOT VERIFIED`.
+
+المقارنة قبل/بعد:
+
+```bash
+python3 generate_adaptive_comparison.py --bars 6000 --seed 11
+```
+
 ## التشغيل المستمر بلا إشراف
 
 انظر `OPERATIONS_RUNBOOK.md`. `watchdog.py` يعيد تشغيل المحرك عند الانهيار، مع تنبيهات Telegram/Webhook اختيارية عند الأحداث الحرجة. لا يغيّر حالة بوابة Live بأي شكل.

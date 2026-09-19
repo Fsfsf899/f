@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS positions (
   symbol TEXT NOT NULL, side TEXT NOT NULL DEFAULT 'LONG',
   qty REAL NOT NULL, entry_price REAL NOT NULL,
   stop_loss REAL, take_profit REAL,
+  -- الوقف/الهدف كما كانا لحظة الفتح. `stop_loss` يتحرّك (تعادل، تتبّع)
+  -- فلا يصلح أساساً لحساب R. بدون هذين العمودين تصير وحدة المخاطرة
+  -- سالبة بعد أوّل نقل للوقف، فيتوقّف التتبّع نهائياً.
+  initial_stop REAL, initial_target REAL,
   opened_ts INTEGER NOT NULL, closed_ts INTEGER,
   status TEXT NOT NULL DEFAULT 'OPEN',
   entry_order_id TEXT, stop_order_id TEXT, exit_order_id TEXT,
@@ -160,6 +164,24 @@ CREATE TABLE IF NOT EXISTS backtest_trades (
   pnl REAL, exit_reason TEXT, stars INTEGER,
   raw_probability REAL, mae_pct REAL, mfe_pct REAL
 );
+
+CREATE TABLE IF NOT EXISTS trade_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  position_id INTEGER REFERENCES positions(id),
+  symbol TEXT NOT NULL,
+  bar_time INTEGER,
+  market_regime TEXT, regime_confidence REAL, regime_bars INTEGER,
+  price REAL, atr REAL,
+  original_stop REAL, current_stop REAL, new_stop REAL,
+  original_target REAL, current_target REAL, new_target REAL,
+  break_even_state TEXT, trailing_state TEXT,
+  mfe_pct REAL, mae_pct REAL, time_in_trade_h REAL,
+  decision TEXT NOT NULL, reason TEXT, reason_ar TEXT,
+  applied TEXT, audit TEXT,
+  UNIQUE(position_id, bar_time, decision)
+);
+CREATE INDEX IF NOT EXISTS ix_td_pos ON trade_decisions(position_id, ts);
 
 CREATE TABLE IF NOT EXISTS order_intents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -353,6 +375,19 @@ class Database:
 
     def open_positions(self) -> List[Dict]:
         return self.query("SELECT * FROM positions WHERE status='OPEN'")
+
+    def save_trade_decision(self, **kw) -> int:
+        """
+        سجل تدقيق قرارات الإدارة التكيّفية (Part B البند 36).
+
+        `UNIQUE(position_id, bar_time, decision)` يجعل إعادة تقييم نفس
+        الشمعة بعد إعادة تشغيل لا تُنتج صفاً مكرَّراً — يُرجع 0 عندها.
+        ممنوع تسجيل أي مفتاح أو توقيع هنا؛ الحقول كلها سعرية/حالية.
+        """
+        kw.setdefault('ts', int(time.time() * 1000))
+        if isinstance(kw.get('audit'), (dict, list)):
+            kw['audit'] = json.dumps(kw['audit'], ensure_ascii=False)
+        return self._ins('trade_decisions', kw)
 
     def update_position(self, pos_id: int, **kw):
         if not kw: return

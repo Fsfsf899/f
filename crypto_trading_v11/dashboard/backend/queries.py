@@ -893,6 +893,89 @@ class DashboardQueries:
             })
         return out
 
+    def trade_management(self, position_id: Optional[int] = None) -> Dict:
+        """
+        لوحة إدارة الصفقة التكيّفية — Part B البندان 34 و35.
+
+        قراءة محضة لما سجّله `LiveTrader._manage_open_position()` فعلاً.
+        لا حساب هنا ولا في الواجهة: كل رقم صدر عن المحرك وقت القرار،
+        فلو اختلف عمّا نفّذه النظام لَظهر الاختلاف بدل أن يُخفيه حساب
+        تجميلي في طبقة العرض.
+        """
+        q = 'SELECT * FROM trade_decisions'
+        args: tuple = ()
+        if position_id is not None:
+            q += ' WHERE position_id=?'
+            args = (position_id,)
+        row = self.db.one(q + ' ORDER BY id DESC LIMIT 1', args)
+        if not row:
+            return {'available': False,
+                    'reason': 'NO_DECISION_YET',
+                    'explanation': ['لم تُسجَّل أي قرارات إدارة بعد. '
+                                    'الطبقة التكيّفية قد تكون معطَّلة، '
+                                    'أو لا يوجد مركز مفتوح.']}
+
+        orig_t = row.get('original_target')
+        cur_t = row.get('current_target')
+        new_t = row.get('new_target')
+        eff_t = new_t if new_t is not None else cur_t
+        adj = None
+        if orig_t and eff_t:
+            adj = round((eff_t - orig_t) / orig_t * 100, 4)
+
+        return {
+            'available': True,
+            'position_id': row.get('position_id'),
+            'symbol': row.get('symbol'),
+            'decision_ts': row.get('ts'),
+            'bar_time': row.get('bar_time'),
+            'market_regime': row.get('market_regime'),
+            'regime_confidence': row.get('regime_confidence'),
+            'regime_bars': row.get('regime_bars'),
+            'price': row.get('price'),
+            'atr': row.get('atr'),
+            'atr_multiplier': None,
+            'original_take_profit': orig_t,
+            'adaptive_take_profit': eff_t,
+            'tp_adjustment_pct': adj,
+            'original_stop': row.get('original_stop'),
+            'current_stop': row.get('new_stop') or row.get('current_stop'),
+            'break_even_status': row.get('break_even_state'),
+            'trailing_status': row.get('trailing_state'),
+            'mfe_pct': row.get('mfe_pct'),
+            'mae_pct': row.get('mae_pct'),
+            'time_in_trade_hours': row.get('time_in_trade_h'),
+            'exit_decision': row.get('decision'),
+            'exit_reason': row.get('reason'),
+            'why': row.get('reason_ar'),
+            'applied': row.get('applied'),
+            'audit': _j(row.get('audit'), {}),
+        }
+
+    def trade_decisions(self, *, limit: int = 50,
+                        position_id: Optional[int] = None) -> List[Dict]:
+        """سجل قرارات الإدارة (البند 36) — حقول محدَّدة صراحةً، لا صف خام."""
+        q = 'SELECT * FROM trade_decisions'
+        args: List = []
+        if position_id is not None:
+            q += ' WHERE position_id=?'
+            args.append(position_id)
+        q += ' ORDER BY id DESC LIMIT ?'
+        args.append(limit)
+        return [{
+            'id': r['id'], 'ts': r['ts'], 'position_id': r['position_id'],
+            'symbol': r['symbol'], 'bar_time': r['bar_time'],
+            'market_regime': r['market_regime'],
+            'regime_bars': r['regime_bars'],
+            'price': r['price'], 'atr': r['atr'],
+            'current_stop': r['current_stop'], 'new_stop': r['new_stop'],
+            'current_target': r['current_target'], 'new_target': r['new_target'],
+            'mfe_pct': r['mfe_pct'], 'mae_pct': r['mae_pct'],
+            'time_in_trade_h': r['time_in_trade_h'],
+            'decision': r['decision'], 'reason': r['reason'],
+            'why': r['reason_ar'], 'applied': r['applied'],
+        } for r in self.db.query(q, tuple(args))]
+
     def opportunity_scans(self, limit: int = 20) -> List[Dict]:
         """
         سجل عمليات مسح أفضل فرصة — القسم 93 (86 أيضاً: جدول المقارنة).

@@ -59,6 +59,15 @@ PULLBACK_GRID = {
     'pullback.zone_atr': [0.35, 0.50, 0.65],
     'pullback.max_depth_atr': [1.0, 1.5, 2.0],
 }
+# Part B البند 30: معاملات الإدارة التكيّفية تُبحَث داخل TRAIN وتُجمَّد
+# قبل OOS كبقية المعاملات. بدون هذا كانت قيمها الافتراضية ستنتقل إلى
+# الإنتاج بلا أي تحقّق خارج العيّنة — وهي بالضبط الفجوة التي وثّقها
+# ENTRY_MODEL_VALIDATION_REPORT.md لمعاملات الدخول قبل إصلاحها.
+ADAPTIVE_GRID = {
+    'adaptive.break_even_trigger_r': [0.75, 1.0, 1.5],
+    'adaptive.break_even_buffer_pct': [0.0, 0.05, 0.10],
+    'adaptive.regime_confirmation_candles': [2, 3, 5],
+}
 
 
 def _apply(base: Config, params: Dict) -> Config:
@@ -130,12 +139,15 @@ def resolve_search(base_cfg: Config,
     stages: List[Dict[str, List]] = [dict(grid or DEFAULT_GRID)]
     bo = bool(getattr(base_cfg.breakout, 'enabled', False))
     pb = bool(getattr(base_cfg.pullback, 'enabled', False))
+    ad = bool(getattr(getattr(base_cfg, 'adaptive', None), 'enabled', False))
 
     if extend_for_entry_models and grid is None:
         if bo:
             stages.append(dict(BREAKOUT_GRID))
         if pb:
             stages.append(dict(PULLBACK_GRID))
+        if ad:
+            stages.append(dict(ADAPTIVE_GRID))
 
     factory = engine_factory
     if factory is None:

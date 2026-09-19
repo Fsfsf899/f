@@ -22,7 +22,12 @@ from .costs import CostModel
 from ..account.providers import SimulatedAccountProvider
 from .execution import (Bar, resolve_long_exit, STOP_LOSS, TAKE_PROFIT,
                         TRAILING_STOP, BREAK_EVEN, SIGNAL_EXIT, TIME_EXIT,
-                        BACKTEST_END)
+                        BACKTEST_END, STAGNATION_EXIT)
+from ..market.regime import detect_series
+from ..trade_management import AdaptiveTradeManager, MarketView, TradeState
+from ..trade_management.hysteresis import confirm_series
+from ..trade_management.types import BREAK_EVEN as ADAPT_BE
+from ..trade_management.types import TRAILING_STOP as ADAPT_TRAIL
 
 
 @dataclass
@@ -44,6 +49,13 @@ class Position:
     mfe: float = 0.0     # أقصى تحرك لصالحنا
     breakeven_done: bool = False
     trailing_active: bool = False   # ميّز عن breakeven — لتصنيف سبب الخروج بدقة
+    target_adjusted: bool = False   # Part B البند 19 — الهدف قُرِّب مرّة
+    initial_target: float = 0.0     # الهدف الأصلي محفوظ للمقارنة (البند 19)
+    # قرار خروج اتُّخذ من إغلاق الشمعة i ويُنفَّذ عند فتح i+1 — نفس
+    # انضباط الدخول في هذا المحرك، فلا يُنفَّذ قرار بسعر لم يكن معروفاً
+    # لحظة اتخاذه (البند 29).
+    pending_exit: Optional[str] = None
+    last_decision: Optional[Dict] = None
 
 
 @dataclass
@@ -73,6 +85,9 @@ class BacktestEngine:
         self.costs = CostModel(self.cfg.costs)
         self.sizer = PositionSizer(self.cfg.risk, self.costs)
         self.account = SimulatedAccountProvider(self.cfg.risk)
+        # نفس نموذج التكاليف يُمرَّر للمحرك التكيّفي — لا نسخة ثانية،
+        # وإلا لحُسب التعادل بتكاليف تخالف تكاليف التنفيذ الفعلي.
+        self.atm = AdaptiveTradeManager(self.cfg, self.costs)
         self.initial = initial_capital
 
     def run(self, data: OHLCV, *, data_quality: float = 1.0,
@@ -82,6 +97,17 @@ class BacktestEngine:
         o, h, l, c = data.open, data.high, data.low, data.close
         prep = self.engine.prepare(data)
         atr_series = prep['ind']['atr']
+
+        # ── Part B: إدارة الصفقة التكيّفية. تُحسب سلسلة الحالة مرّة
+        # واحدة تراكمياً (كل قيمة من بادئتها فقط) ثم تُثبَّت بالتهدئة.
+        adaptive_on = bool(cfg.adaptive.enabled)
+        regime_conf = None
+        res_series = None
+        if adaptive_on:
+            raw_reg = detect_series(c, cfg.regime, prep['ind'].get('adx'),
+                                    data.interval)
+            regime_conf = confirm_series([str(x) for x in raw_reg], cfg.adaptive)
+            res_series = prep['st'].get('resistance')
 
         guard = RiskGuard(cfg.risk)
         equity = np.full(n + 1, self.initial, dtype=float)
@@ -129,7 +155,8 @@ class BacktestEngine:
                                        sized['qty'], stop, tgt, stop,
                                        sig['stars'], sig['score'],
                                        fill.fee, fill.slippage_cost,
-                                       sig['regime'], sig['raw_probability'])
+                                       sig['regime'], sig['raw_probability'],
+                                       initial_target=tgt)
                         guard.record_open()
 
             # ── 2) إدارة المركز المفتوح
@@ -137,10 +164,19 @@ class BacktestEngine:
                 pos.mae = min(pos.mae, (bar.low - pos.entry_price) / pos.entry_price * 100)
                 pos.mfe = max(pos.mfe, (bar.high - pos.entry_price) / pos.entry_price * 100)
 
-                exit_res = resolve_long_exit(
-                    bar, pos.stop, pos.target,
-                    policy=cfg.execution.same_candle_policy,
-                    allow_gap=cfg.execution.allow_gap_fills)
+                # خروج تقرّر من إغلاق الشمعة السابقة يُنفَّذ الآن عند الفتح.
+                # الوقف يسبقه في الأولوية: لو فتحت الشمعة تحته فهو ما
+                # أُصيب فعلاً، وتسميته STAGNATION_EXIT تزوير لسبب الخروج.
+                if pos.pending_exit is not None:
+                    reason_p = pos.pending_exit
+                    pos.pending_exit = None
+                    exit_res = ((STOP_LOSS, bar.open) if bar.open <= pos.stop
+                                else (reason_p, bar.open))
+                else:
+                    exit_res = resolve_long_exit(
+                        bar, pos.stop, pos.target,
+                        policy=cfg.execution.same_candle_policy,
+                        allow_gap=cfg.execution.allow_gap_fills)
 
                 # البند 8C: خروج زمني — يُفحص فقط إن لم يُصب الوقف/الهدف
                 # هذه الشمعة، ولا يُستخدم إلا بتفعيل صريح (معطَّل افتراضياً)
@@ -151,7 +187,7 @@ class BacktestEngine:
                 if exit_res is not None:
                     reason, px = exit_res
                     is_stop = reason == STOP_LOSS
-                    if reason != TIME_EXIT:
+                    if reason not in (TIME_EXIT, STAGNATION_EXIT):
                         # trailing_active لا يعني فقط breakeven — يميّز
                         # حركة التتبّع الفعلية (إن فُعِّلت) عن حركة
                         # التعادل الأحادية، حتى مع فجوة سعرية تحت نقطة
@@ -166,10 +202,26 @@ class BacktestEngine:
                     cash += fill.notional - fill.fee
                     total_fees += fill.fee; total_slip += fill.slippage_cost
                     trades.append(self._record(pos, i, data, fill, reason, total=cash))
-                    guard.record_trade(trades[-1]['pnl'])
+                    # وقت الشمعة لا وقت التشغيل: التبريد يُقاس بزمن
+                    # السوق، وإلا لانتهى فوراً في باكتست يمرّ بآلاف
+                    # الشمعات في ثوانٍ.
+                    guard.record_trade(trades[-1]['pnl'], exit_reason=reason,
+                                       exit_ms=int(data.open_time[i]))
                     pos = None
+                elif adaptive_on:
+                    # المحرك المشترك — نفس الكائن الذي يستدعيه التنفيذ
+                    # الحي. تمريرة واحدة تغطّي التعادل والتتبّع والهدف
+                    # والركود بأولوية قطعية.
+                    self._manage_adaptive(pos, bar, i, data, atr_series,
+                                          regime_conf, res_series)
                 else:
-                    # نقل الوقف لنقطة التعادل بعد 1R
+                    # ── المسار الإرثي (adaptive.enabled=False) ──
+                    # ⚠️ تعادله سعري لا صافٍ: `stop = entry` يخرج بخسارة
+                    # تساوي تكاليف الدخول والخروج. مُقاس في
+                    # V11_ADAPTIVE_TRADE_MANAGEMENT_AUDIT.md: −0.33% لكل
+                    # خروج يسمّيه BREAK_EVEN. أُبقي كما هو بالضبط لأن
+                    # تغييره يغيّر كل نتيجة باكتست تاريخية؛ الإصلاح
+                    # يأتي بتفعيل الطبقة التكيّفية لا بتعديل صامت هنا.
                     r_unit = pos.entry_price - pos.initial_stop
                     if (not pos.breakeven_done and r_unit > 0
                             and bar.high >= pos.entry_price + r_unit):
@@ -194,31 +246,42 @@ class BacktestEngine:
 
             # ── 3) تقييم إشارة جديدة (تُنفَّذ الشمعة القادمة)
             if pos is None and pending is None and i < n - 1:
-                n_eval += 1
-                acc = {'open_positions': 0, 'daily_trades': guard.daily_trades,
-                       'daily_loss_hit': guard.daily_loss_hit(cash),
-                       'consecutive_losses': guard.consecutive_losses,
-                       'exposure_ok': True}
-                s = self.engine.evaluate(data, i, data_quality=data_quality,
-                                         account_state=acc, prep=prep)
-                if s.decision == BUY and s.atr and s.atr > 0:
-                    n_buy += 1
-                    # نحفظ **مسافة** الوقف والهدف من الإشارة، لا السعر
-                    # المطلق — فالتنفيذ الفعلي يقع عند فتح الشمعة التالية
-                    # لا عند سعر مرجع الإشارة. حفظ المسافة يحافظ على أثر
-                    # stop_method (atr/structure/hybrid) بدل إعادة حساب
-                    # وقف ATR بحت هنا كما كان يحدث سابقاً — خطأ كان يُلغي
-                    # أي أثر لطريقة الوقف المختارة على نتيجة الباكتست.
-                    stop_dist = s.entry - s.stop_loss
-                    target_dist = s.take_profit - s.entry
-                    pending = {'atr': float(s.atr), 'stars': s.stars,
-                               'score': s.score, 'regime': s.regime,
-                               'raw_probability': s.raw_probability,
-                               'stop_dist': float(stop_dist),
-                               'target_dist': float(target_dist)}
+                # تبريد ما بعد الخروج (Part C البند 4).
+                # ⚠️ لا `continue` هنا: سطر `equity[i + 1]` أسفل الحلقة
+                # يقع بعد هذه الكتلة، وتخطّيه يترك حقوق الشمعة على
+                # قيمتها الابتدائية — أي يُفسد منحنى الحقوق وكل انخفاض
+                # يُشتقّ منه. التفريع أسلم من القفز.
+                cd = guard.cooldown_remaining_bars(int(data.open_time[i]),
+                                                   data.interval_ms)
+                if cd > 0:
+                    rejections['POST_EXIT_COOLDOWN'] = (
+                        rejections.get('POST_EXIT_COOLDOWN', 0) + 1)
                 else:
-                    for r in s.reasons:
-                        rejections[r] = rejections.get(r, 0) + 1
+                    n_eval += 1
+                    acc = {'open_positions': 0, 'daily_trades': guard.daily_trades,
+                           'daily_loss_hit': guard.daily_loss_hit(cash),
+                           'consecutive_losses': guard.consecutive_losses,
+                           'exposure_ok': True}
+                    s = self.engine.evaluate(data, i, data_quality=data_quality,
+                                             account_state=acc, prep=prep)
+                    if s.decision == BUY and s.atr and s.atr > 0:
+                        n_buy += 1
+                        # نحفظ **مسافة** الوقف والهدف من الإشارة، لا السعر
+                        # المطلق — فالتنفيذ الفعلي يقع عند فتح الشمعة التالية
+                        # لا عند سعر مرجع الإشارة. حفظ المسافة يحافظ على أثر
+                        # stop_method (atr/structure/hybrid) بدل إعادة حساب
+                        # وقف ATR بحت هنا كما كان يحدث سابقاً — خطأ كان يُلغي
+                        # أي أثر لطريقة الوقف المختارة على نتيجة الباكتست.
+                        stop_dist = s.entry - s.stop_loss
+                        target_dist = s.take_profit - s.entry
+                        pending = {'atr': float(s.atr), 'stars': s.stars,
+                                   'score': s.score, 'regime': s.regime,
+                                   'raw_probability': s.raw_probability,
+                                   'stop_dist': float(stop_dist),
+                                   'target_dist': float(target_dist)}
+                    else:
+                        for r in s.reasons:
+                            rejections[r] = rejections.get(r, 0) + 1
 
             equity[i + 1] = cash + (pos.qty * bar.close if pos else 0.0)
 
@@ -250,6 +313,58 @@ class BacktestEngine:
             period={'from_ms': int(data.open_time[0]), 'to_ms': int(data.open_time[-1]),
                     'bars': n},
             open_at_end_closed=closed_at_end)
+
+
+    def _manage_adaptive(self, pos: Position, bar: Bar, i: int, data: OHLCV,
+                         atr_series, regime_conf, res_series) -> None:
+        """
+        يبني مدخلات المحرك المشترك من هذه الشمعة وحدها ويطبّق قراره.
+
+        ⚠️ سببية: كل قيمة تُقرأ عند الفهرس i — الإغلاق والـ ATR والحالة
+        المثبَّتة والمقاومة. لا شيء من i+1. المقاومة نفسها مبنية على
+        محاور مؤكَّدة فقط (`causal_levels`)، فلا تسريب عبرها.
+        """
+        atr_v = float(atr_series[i]) if np.isfinite(atr_series[i]) else 0.0
+        res = None
+        if res_series is not None and i < len(res_series):
+            rv = res_series[i]
+            if rv is not None and np.isfinite(rv):
+                res = float(rv)
+
+        state = TradeState(
+            entry_price=pos.entry_price, qty=pos.qty,
+            initial_stop=pos.initial_stop, current_stop=pos.stop,
+            initial_target=pos.initial_target or pos.target,
+            current_target=pos.target, opened_ms=pos.entry_time,
+            entry_fee=pos.entry_fee, mfe_pct=pos.mfe, mae_pct=pos.mae,
+            breakeven_done=pos.breakeven_done,
+            trailing_active=pos.trailing_active,
+            target_adjusted=pos.target_adjusted,
+            bars_held=i - pos.entry_index, symbol=data.symbol)
+
+        view = MarketView(
+            price=bar.close, atr=atr_v,
+            regime=(regime_conf[i] if regime_conf is not None else 'UNKNOWN'),
+            resistance=res, high=bar.high, low=bar.low,
+            now_ms=int(data.open_time[i]), bar_ms=data.interval_ms)
+
+        vol_mult = max(atr_v / max(bar.close, 1e-9) * 100, 0.5)
+        # الحالة مثبَّتة سلفاً في `regime_conf`، فلا نمرّر سلسلة ثانية
+        # للمحرك — تثبيت مرّتين يخالف نتيجة الباكتست عن الحي.
+        dec = self.atm.evaluate(state, view, vol_mult=vol_mult)
+        pos.last_decision = dec.to_dict()
+
+        if dec.new_stop is not None and dec.new_stop > pos.stop:
+            pos.stop = dec.new_stop
+            if dec.decision == ADAPT_BE:
+                pos.breakeven_done = True
+            elif dec.decision == ADAPT_TRAIL:
+                pos.trailing_active = True
+        if dec.new_target is not None and dec.new_target < pos.target:
+            pos.target = dec.new_target
+            pos.target_adjusted = True
+        if dec.is_exit:
+            pos.pending_exit = STAGNATION_EXIT
 
     @staticmethod
     def _record(pos: Position, exit_i: int, data: OHLCV, fill, reason: str,

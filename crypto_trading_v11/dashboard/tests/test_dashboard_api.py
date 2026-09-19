@@ -533,3 +533,55 @@ class Test07_OpportunityScans(Base):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+# ══ 9. الإدارة التكيّفية — Part B البنود 34-36 ══
+class Test09_TradeManagement(Base):
+    """
+    اللوحة تعرض ما سجّله المحرك، لا ما تحسبه بنفسها (البند 34).
+    """
+
+    def test_endpoint_exists_and_is_honest_when_empty(self):
+        r, b = self.get('/api/trade-management')
+        self.assertEqual(r.status_code, 200)
+        d = b['data']
+        if not d.get('available'):
+            self.assertIn('reason', d)
+            self.assertIn('explanation', d)
+
+    def test_required_panel_fields_present(self):
+        """البند 34 يسمّي الحقول صراحةً — غيابها يجعل اللوحة ناقصة."""
+        _, b = self.get('/api/trade-management')
+        d = b['data']
+        if not d.get('available'):
+            self.skipTest('لا قرارات مسجَّلة في قاعدة الاختبار')
+        for f in ('market_regime', 'regime_confidence',
+                  'original_take_profit', 'adaptive_take_profit',
+                  'tp_adjustment_pct', 'break_even_status', 'current_stop',
+                  'trailing_status', 'atr', 'time_in_trade_hours',
+                  'mfe_pct', 'mae_pct', 'exit_decision', 'exit_reason', 'why'):
+            self.assertIn(f, d, f'الحقل {f} مفقود من لوحة الإدارة')
+
+    def test_decisions_log_endpoint(self):
+        r, b = self.get('/api/trade-decisions')
+        self.assertEqual(r.status_code, 200)
+        self.assertIsInstance(b['data'], list)
+
+    def test_no_secrets_in_either_endpoint(self):
+        for path in ('/api/trade-management', '/api/trade-decisions'):
+            _, b = self.get(path)
+            blob = repr(b).lower()
+            for bad in ('api_key', 'api_secret', 'signature', 'apikey'):
+                self.assertNotIn(bad, blob, f'{path} سرَّب {bad}')
+
+    def test_schema_version_tracks_engine(self):
+        """
+        الانحدار الحقيقي الذي وقع أثناء هذا العمل: رقم المخطط المتوقَّع
+        كان مكتوباً يدوياً في اللوحة، فلمّا ارتفع مخطط المحرك إلى v8
+        أبلغت اللوحة "النظام غير متصل" بلا أي عطل فعلي. الاستيراد
+        المباشر يجعل التباعد مستحيلاً بنيوياً.
+        """
+        from src.storage.migrations import SCHEMA_VERSION
+        from dashboard.backend.readonly_db import EXPECTED_SCHEMA_VERSION
+        self.assertEqual(EXPECTED_SCHEMA_VERSION, SCHEMA_VERSION,
+                         'رقم مخطط اللوحة تباعد عن المحرك')

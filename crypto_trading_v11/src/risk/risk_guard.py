@@ -60,6 +60,8 @@ class RiskGuard:
         self.last_trade_id: Optional[str] = None
         self.last_trade_symbol: Optional[str] = None
         self.last_trade_pnl: Optional[float] = None
+        self.last_exit_ms: Optional[int] = None
+        self.last_exit_reason: Optional[str] = None
         self._recent_ids: List[str] = []
 
         if self.db is not None:
@@ -91,6 +93,9 @@ class RiskGuard:
             pnl = d.get('last_trade_pnl')
             self.last_trade_pnl = float(pnl) if pnl is not None else None
             self._recent_ids = list(d.get('recent_ids', []) or [])
+            ex = d.get('last_exit_ms')
+            self.last_exit_ms = int(ex) if ex is not None else None
+            self.last_exit_reason = d.get('last_exit_reason')
             inconsistent = (not self.halted
                            and self.consecutive_losses >= self.cfg.max_consecutive_losses)
             self.db.system_event(
@@ -114,6 +119,8 @@ class RiskGuard:
             'last_trade_symbol': self.last_trade_symbol,
             'last_trade_pnl': self.last_trade_pnl,
             'recent_ids': self._recent_ids[-50:],
+            'last_exit_ms': self.last_exit_ms,
+            'last_exit_reason': self.last_exit_reason,
             'saved_at': int(time.time() * 1000)})
 
     # ── الدورة اليومية ──
@@ -138,6 +145,29 @@ class RiskGuard:
             return False
         limit = self.daily_starting_equity * self.cfg.max_daily_loss_pct / 100
         return self.daily_pnl(equity) <= -limit
+
+
+    # ── تبريد ما بعد الخروج (Part C البند 4) ──
+    def cooldown_remaining_bars(self, now_ms: int, bar_ms: int) -> int:
+        """
+        كم شمعة بقيت من التبريد. صفر = مسموح بالدخول.
+
+        المنطق: بعد وقف أو خروج ركود، الشرط الذي أخرجنا غالباً ما يزال
+        قائماً — السعر نفسه، الحالة نفسها، الشمعة نفسها أحياناً. الدخول
+        فوراً يعيد إنتاج الصفقة الخاسرة ذاتها.
+
+        لا يُفرَض تبريد إلا على أسباب الخروج المُعدَّة صراحةً: الخروج
+        بالهدف ليس إشارة سوء ولا يستحق عقوبة انتظار.
+        """
+        bars = int(getattr(self.cfg, 'post_exit_cooldown_bars', 0) or 0)
+        if bars <= 0 or not self.last_exit_ms or bar_ms <= 0:
+            return 0
+        reasons = tuple(getattr(self.cfg, 'post_exit_cooldown_reasons', ()) or ())
+        if reasons and self.last_exit_reason not in reasons:
+            return 0
+        elapsed = max(0, int(now_ms) - int(self.last_exit_ms))
+        done = elapsed // int(bar_ms)
+        return max(0, bars - int(done))
 
     def can_trade(self, equity: float) -> Dict:
         if self.halted:
@@ -164,7 +194,9 @@ class RiskGuard:
         self._save()
 
     def record_trade(self, pnl: float, *, trade_id: Optional[str] = None,
-                     symbol: Optional[str] = None) -> bool:
+                     symbol: Optional[str] = None,
+                     exit_reason: Optional[str] = None,
+                     exit_ms: Optional[int] = None) -> bool:
         """
         `trade_id` اختياري لكن **إلزامي فعلياً في مسار Live/Paper**
         لمنع تكرار التحديث عند إعادة إرسال Fill. يُرجع False ولا
@@ -183,6 +215,13 @@ class RiskGuard:
         self.consecutive_losses = self.consecutive_losses + 1 if pnl < 0 else 0
         self.last_trade_symbol = symbol
         self.last_trade_pnl = float(pnl)
+        if exit_reason is not None:
+            self.last_exit_reason = str(exit_reason)
+            # وقت الخروج يأتي من المُستدعي: الباكتست يمرّر وقت الشمعة،
+            # والحي يمرّر وقت الجدار. لو قرأه هذا الكائن بنفسه لقاس
+            # الباكتست تبريداً بزمن التشغيل لا بزمن السوق.
+            self.last_exit_ms = int(exit_ms) if exit_ms is not None else int(
+                time.time() * 1000)
         self._save()
         if self.db is not None:
             self.db.system_event(

@@ -15,7 +15,7 @@ import sqlite3
 import time
 from typing import List, Tuple, Callable
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _cols(conn, table: str) -> List[str]:
@@ -227,9 +227,55 @@ def migrate_v6_to_v7(conn):
     _add_col(conn, 'signals', 'setup_type', 'TEXT')
 
 
+def migrate_v7_to_v8(conn):
+    """
+    v8: سجل قرارات إدارة الصفقة التكيّفية (Part B البند 36).
+
+    إضافة محضة: جدول جديد وفهرس، بلا لمس أي جدول قائم وبلا حذف صف
+    واحد (البند 41). تشغيله على قاعدة تحوي الجدول أصلاً لا يفعل شيئاً.
+    """
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS trade_decisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      position_id INTEGER REFERENCES positions(id),
+      symbol TEXT NOT NULL,
+      bar_time INTEGER,
+      market_regime TEXT, regime_confidence REAL, regime_bars INTEGER,
+      price REAL, atr REAL,
+      original_stop REAL, current_stop REAL, new_stop REAL,
+      original_target REAL, current_target REAL, new_target REAL,
+      break_even_state TEXT, trailing_state TEXT,
+      mfe_pct REAL, mae_pct REAL, time_in_trade_h REAL,
+      decision TEXT NOT NULL, reason TEXT, reason_ar TEXT,
+      applied TEXT, audit TEXT,
+      UNIQUE(position_id, bar_time, decision)
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS ix_td_pos "
+                 "ON trade_decisions(position_id, ts)")
+
+    # الوقف/الهدف الأصليان — لازمان لحساب وحدة المخاطرة (R) بعد أن
+    # يتحرّك الوقف. التعبئة الرجعية تنسخ القيم الحالية: أدقّ ما يمكن
+    # معرفته عن مركز فُتح قبل وجود العمودين، ولا تُفسد أي صف.
+    #
+    # ⚠️ كل عمود مصدر يُفحَص وجوده أولاً. قاعدة من حقبة v4 قد لا تحوي
+    # `take_profit` أصلاً (ولا جدول `positions` أحياناً)، و`UPDATE`
+    # عارية عليها ترفع OperationalError فتُجهِض الترحيل كلّه وتُعيد
+    # النسخة الاحتياطية — أي تعطيل ترقية المستخدم لا مجرّد تخطّي حقل.
+    for col in ('initial_stop', 'initial_target'):
+        _add_col(conn, 'positions', col, 'REAL')
+    cols = set(_cols(conn, 'positions'))
+    if {'initial_stop', 'stop_loss'} <= cols:
+        conn.execute("UPDATE positions SET initial_stop=stop_loss "
+                     "WHERE initial_stop IS NULL")
+    if {'initial_target', 'take_profit'} <= cols:
+        conn.execute("UPDATE positions SET initial_target=take_profit "
+                     "WHERE initial_target IS NULL")
+
+
 MIGRATIONS: List[Tuple[int, Callable]] = [
     (2, migrate_v1_to_v2), (3, migrate_v2_to_v3), (4, migrate_v3_to_v4),
-    (5, migrate_v4_to_v5), (6, migrate_v5_to_v6), (7, migrate_v6_to_v7)]
+    (5, migrate_v4_to_v5), (6, migrate_v5_to_v6), (7, migrate_v6_to_v7), (8, migrate_v7_to_v8)]
 
 
 def current_version(path: str) -> int:

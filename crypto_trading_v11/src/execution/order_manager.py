@@ -291,6 +291,7 @@ class OrderManager:
         pos_id = self.db.open_position(
             recommendation_id=recommendation_id, symbol=symbol, qty=qty,
             entry_price=avg, stop_loss=stop, take_profit=target,
+            initial_stop=stop, initial_target=target,
             entry_order_id=str(r.get('orderId')), fees=fee)
         if not pos_id:
             # UNIQUE(recommendation_id) رفض: مركز لهذه التوصية مسجَّل بالفعل.
@@ -576,6 +577,113 @@ class OrderManager:
                 actions.append({'position': pos_id,
                                 'action': 'EMERGENCY_EXIT' if ok else 'EMERGENCY_EXIT_FAILED'})
         return actions
+
+    # ═══ Part B: تطبيق قرار الإدارة التكيّفية على الحماية القائمة ═══
+    def apply_protection_change(self, pos: Dict, *, new_stop: Optional[float] = None,
+                                new_target: Optional[float] = None,
+                                reason: str = 'ADAPTIVE') -> Dict:
+        """
+        ينقل الوقف/الهدف عبر دورة حياة OCO القائمة — لا تعديل مباشر
+        على المنصة (Part B البندان 10 و23).
+
+        التسلسل: إلغاء مُتحقَّق منه ← وضع حماية جديدة ← تحديث السجل.
+        بين الإلغاء والوضع نافذة يكون فيها المركز بلا حماية، وهي
+        الخطر الحقيقي الوحيد في هذه الميزة كلها. لذلك:
+
+          • أي فشل **قبل** الإلغاء ⇒ لا شيء يُلمس، والحماية القديمة باقية.
+          • فشل **بعد** الإلغاء ⇒ نحاول إعادة الحماية القديمة فوراً.
+          • فشل الإعادة أيضاً ⇒ مفتاح إيقاف، بنفس سياسة
+            `UNPROTECTED_POSITION` في `guard_stops()`. لا تداول فوق
+            مركز مكشوف.
+
+        ⚠️ الوقف لا يتّسع أبداً (Part C البند 16): مرشّح ≤ الوقف
+        المسجَّل يُرفض هنا أيضاً، لا في المحرك وحده. الحارس مكرَّر عمداً
+        عند حدود المال — المحرك قد يُستبدَل يوماً، وهذه آخر نقطة قبل
+        إرسال أمر حقيقي.
+        """
+        pos_id, symbol = pos['id'], pos['symbol']
+        old_stop = float(pos.get('stop_loss') or 0.0)
+        old_target = float(pos.get('take_profit') or 0.0)
+        qty = float(pos.get('qty') or 0.0)
+
+        tgt_stop = float(new_stop) if new_stop is not None else old_stop
+        tgt_target = float(new_target) if new_target is not None else old_target
+
+        if qty <= 0 or tgt_stop <= 0:
+            return {'action': 'REFUSED', 'why': 'INVALID_POSITION'}
+        # تساوي القيم ليس توسيعاً — يُعالَج كـ NO_CHANGE أدناه. الرفض
+        # هنا للتراجع الحقيقي فقط، وإلا لصُنِّف كل استدعاء بلا تغيير
+        # "محاولة توسيع مخاطرة" فامتلأ سجل المخاطر بضجيج كاذب.
+        if new_stop is not None and tgt_stop < old_stop:
+            self.db.risk_event('ADAPTIVE_STOP_WIDEN_BLOCKED', 'WARNING',
+                               f'{symbol} pos {pos_id}: {tgt_stop} < {old_stop}',
+                               symbol)
+            return {'action': 'REFUSED', 'why': 'WOULD_WIDEN_RISK'}
+        if tgt_stop == old_stop and tgt_target == old_target:
+            return {'action': 'NO_CHANGE', 'why': 'IDENTICAL'}
+
+        # النسخة تُحجز **قبل** الإلغاء: لو كانت هناك نية عالقة
+        # (IN_FLIGHT/UNKNOWN) فالبوابة تمنع، ولا يصحّ أن نكون قد ألغينا
+        # الحماية القائمة قبل أن نعرف ذلك.
+        version = self._next_stop_version(pos_id, intentional=True)
+        if version is None:
+            return {'action': 'REFUSED', 'why': 'INTENT_UNRESOLVED'}
+
+        ok, note, st = self._ensure_stop_gone(symbol, pos)
+        if not ok:
+            self.db.risk_event('ADAPTIVE_CANCEL_FAILED', 'WARNING',
+                               f'{symbol} pos {pos_id}: {note}', symbol)
+            return {'action': 'REFUSED', 'why': 'CANCEL_FAILED', 'note': note}
+        if note == 'STOP_FILLED':
+            # الوقف نُفِّذ بين قرارنا وتنفيذه — المركز خرج، لا حماية تُوضع.
+            cid = str(pos.get('stop_client_order_id') or pos.get('stop_order_id'))
+            self._record_exit(pos, symbol, st, 'STOP_LOSS', client_order_id=cid)
+            return {'action': 'STOP_FILLED_SETTLED', 'why': note}
+
+        old_list_cid = pos.get('list_client_order_id')
+        if old_list_cid:
+            try:
+                self.db.transition_order_state(
+                    old_list_cid, CANCELED,
+                    reason=f'apply_protection_change: {reason}',
+                    actor='adaptive')
+            except Exception as e:       # noqa: BLE001 — الانتقال غير القانوني
+                # لا يُبتلَع الخطأ: يُسجَّل. الحماية أُلغيت فعلاً على المنصة،
+                # فالمضي في وضع الجديدة هو التصرّف الآمن، لا التوقف هنا.
+                self.db.risk_event('ADAPTIVE_STATE_TRANSITION_FAILED', 'WARNING',
+                                   f'{symbol} pos {pos_id}: {e}', symbol)
+
+        sid, tid = self._place_oco(symbol, qty, tgt_stop, tgt_target,
+                                   pos_id, version=version)
+        if sid is not None:
+            self.db.update_position(pos_id, stop_loss=tgt_stop,
+                                    take_profit=tgt_target)
+            self.db.risk_event('ADAPTIVE_PROTECTION_MOVED', 'INFO',
+                               f'{symbol} pos {pos_id}: وقف {old_stop}→{tgt_stop}، '
+                               f'هدف {old_target}→{tgt_target} ({reason})', symbol)
+            return {'action': 'APPLIED', 'stop': tgt_stop, 'target': tgt_target,
+                    'stop_order_id': sid, 'target_order_id': tid}
+
+        # فشل الوضع — المركز الآن مكشوف. استعادة القديم أولوية قصوى.
+        rv = self._next_stop_version(pos_id, intentional=True)
+        rsid = None
+        if rv is not None:
+            rsid, _ = self._place_oco(symbol, qty, old_stop, old_target,
+                                      pos_id, version=rv)
+        if rsid is not None:
+            self.db.risk_event('ADAPTIVE_PROTECTION_RESTORED', 'HIGH',
+                               f'{symbol} pos {pos_id}: تعذّر النقل، أُعيدت '
+                               f'الحماية القديمة', symbol)
+            return {'action': 'RESTORED', 'why': 'PLACE_FAILED'}
+
+        self.db.risk_event('UNPROTECTED_POSITION', 'CRITICAL',
+                           f'{symbol} مركز {pos_id}: فشل نقل الحماية وفشلت '
+                           f'استعادتها', symbol)
+        if self.health:
+            self.health.engage_kill_switch(
+                f'مركز {pos_id} ({symbol}) بلا حماية بعد محاولة نقل الوقف — '
+                f'يلزم تدخل يدوي')
+        return {'action': 'UNPROTECTED', 'why': 'RESTORE_FAILED'}
 
     def _verify_still_held(self, symbol: str, qty: float) -> float:
         try:
@@ -941,7 +1049,8 @@ class OrderManager:
             # trade_id ثابت لهذا الخروج بالذات — يمنع تحديث العداد
             # مرتين لو أُعيد استدعاء نفس الحدث (إعادة تشغيل، تكرار fill)
             tid = client_order_id or f"exit-{pos['id']}-{r.get('orderId')}"
-            self.risk_guard.record_trade(total_pnl, trade_id=tid, symbol=symbol)
+            self.risk_guard.record_trade(total_pnl, trade_id=tid, symbol=symbol,
+                                         exit_reason=reason)
 
     def _settle_after_stop(self, pos: Dict, symbol: str):
         """
@@ -971,4 +1080,5 @@ class OrderManager:
                 pnl_pct=pnl / max(pos['entry_price'] * qty, 1e-9) * 100)
         if self.risk_guard is not None:
             tid = f"exit-{pos['id']}-{pos.get('stop_order_id')}"
-            self.risk_guard.record_trade(pnl, trade_id=tid, symbol=symbol)
+            self.risk_guard.record_trade(pnl, trade_id=tid, symbol=symbol,
+                                         exit_reason='STOP_LOSS')

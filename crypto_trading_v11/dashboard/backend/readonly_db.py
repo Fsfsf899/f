@@ -30,7 +30,16 @@ class DatabaseUnavailable(Exception):
     """القاعدة غير متاحة — تُعرض كحالة، لا تُخفى."""
 
 
-EXPECTED_SCHEMA_VERSION = 7
+# ⚠️ يُستورَد من المحرك، لا يُكتب رقماً هنا. النسخة المكتوبة يدوياً
+# كانت مصدر حقيقة ثانياً: رفعُ مخطط المحرك إلى v8 جعل اللوحة تُبلِّغ
+# SCHEMA_MISMATCH ⇒ DEGRADED ⇒ "النظام غير متصل" — واللوحة سليمة
+# والقاعدة سليمة. نفس نمط "أربعة حسابات للانخفاض الأقصى": رقمان
+# يجب أن يتطابقا، فيُكتبان في مكانين، فيتباعدان.
+try:
+    from src.storage.migrations import SCHEMA_VERSION as EXPECTED_SCHEMA_VERSION
+except Exception:                       # noqa: BLE001
+    # اللوحة قد تُشغَّل بمعزل عن شجرة المحرك؛ آخر نسخة معروفة احتياطاً.
+    EXPECTED_SCHEMA_VERSION = 8
 MAX_ROWS = 5000
 QUERY_TIMEOUT_MS = 4000
 

@@ -226,14 +226,22 @@ class Test06_FrontendDoesNotCompute(unittest.TestCase):
     مصدر حقيقة ثانياً يخالف الخلفية بصمت.
     """
 
-    def test_sizing_page_has_no_arithmetic(self):
+    # الصفحات الخاضعة للحارس: كلّ صفحة تعرض أرقاماً قرّرها المحرك.
+    # صفحة الإدارة التكيّفية أُضيفت هنا لحظة إنشائها — لا بعد أن يتسرّب
+    # إليها حساب. الحارس الذي يغطّي صفحة واحدة يترك الباب مفتوحاً
+    # للصفحة التالية.
+    GUARDED = [('PAGES.sizing', 'PAGES.opportunity'),
+               ('PAGES.manage', 'PAGES.sizing')]
+
+    def _body(self, start_tok, end_tok):
         path = os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), 'dashboard', 'frontend', 'assets',
             'app.js')
-        src = open(path, encoding='utf-8').read()
-        start = src.index('PAGES.sizing')
-        end = src.index('PAGES.opportunity')
-        body = src[start:end]
+        with open(path, encoding='utf-8') as f:
+            src = f.read()
+        return src[src.index(start_tok):src.index(end_tok)]
+
+    def _arithmetic_in(self, body):
         import re
         # تُزال النصوص الحرفية أولاً: `paper/testnet` داخل رسالة ليست
         # قسمة، وحارس يسقط عليها حارس هشّ لا حارس حقيقي.
@@ -241,9 +249,22 @@ class Test06_FrontendDoesNotCompute(unittest.TestCase):
                         "''", body, flags=re.S)
         # `* 1000` تحويل ثوانٍ إلى ميلي ثانية لدالة عرض — لا حساب مالي
         no_str = no_str.replace('* 1000', '').replace('*1000', '')
-        bad = re.findall(r'[a-zA-Z_\]\)]\s*[*/]\s*[a-zA-Z0-9_(]', no_str)
-        self.assertEqual(bad, [],
-                         f'حساب في الواجهة يخالف القسم 25: {bad}')
+        return re.findall(r'[a-zA-Z_\]\)]\s*[*/]\s*[a-zA-Z0-9_(]', no_str)
+
+    def test_decision_pages_have_no_arithmetic(self):
+        for start_tok, end_tok in self.GUARDED:
+            bad = self._arithmetic_in(self._body(start_tok, end_tok))
+            self.assertEqual(bad, [],
+                             f'حساب في {start_tok} يخالف القسم 25: {bad}')
+
+    def test_guard_actually_detects_arithmetic(self):
+        """
+        اختبار سالب للحارس نفسه: حارس لا يُثبَت أنه يكشف شيئاً ليس
+        حارساً. نحقن حساباً صريحاً ونتأكد أنه يُرصَد.
+        """
+        injected = "PAGES.manage = () => { const x = plan.position_value * 0.5; };"
+        self.assertTrue(self._arithmetic_in(injected),
+                        'الحارس لم يرصد حساباً صريحاً — فهو معطّل')
 
 
 if __name__ == '__main__':

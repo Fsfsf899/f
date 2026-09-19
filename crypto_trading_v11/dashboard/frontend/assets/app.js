@@ -14,6 +14,7 @@ const ROUTES = [
   { id: 'dashboard',       title: 'Dashboard',        icon: '▣' },
   { id: 'opportunity',     title: 'Best Opportunity', icon: '🎯' },
   { id: 'sizing',          title: 'How Much To Enter', icon: '💰' },
+  { id: 'manage',          title: 'Trade Management', icon: '🎯' },
   { id: 'recommendations', title: 'Recommendations',  icon: '◆' },
   { id: 'positions',       title: 'Open Positions',   icon: '▤' },
   { id: 'trades',          title: 'Trade History',    icon: '≡' },
@@ -30,7 +31,8 @@ const S = {
 };
 
 const REFRESH = { dashboard: 7000, positions: 7000, health: 12000,
-  audit: 10000, recommendations: 10000, opportunity: 8000, sizing: 7000 };
+  audit: 10000, recommendations: 10000, opportunity: 8000, sizing: 7000,
+  manage: 7000 };
 
 /* ═══ التوجيه ═══ */
 function parseHash() {
@@ -286,6 +288,112 @@ function posTable(items) {
 }
 
 /* ── أفضل فرصة (الأقسام 78-98) ── */
+/* ═══ الإدارة التكيّفية للصفقة — Part B البنود 34-36 ═══
+   نفس القاعدة الصارمة المطبَّقة في صفحة التحجيم: **لا حساب هنا**.
+   كل رقم — بما فيه نسبة تعديل الهدف — حسبه المحرك وقت القرار وسجّله،
+   والواجهة تعرضه كما هو. لو حسبت الواجهة أي رقم بنفسها لصارت مصدر
+   حقيقة ثانياً يخالف ما نفّذه النظام فعلاً على المنصة. */
+PAGES.manage = async () => {
+  let mg, log;
+  try {
+    [mg, log] = await Promise.all([
+      api.tradeManagement().then((r) => r.data),
+      api.tradeDecisions({ limit: 40 }).then((r) => r.data),
+    ]);
+  } catch (e) { return mount(errorState(e, render)); }
+
+  if (!mg || !mg.available) {
+    return mount(el('section', { class: 'card' },
+      el('h2', {}, '🎯 إدارة الصفقة التكيّفية'),
+      el('div', { class: 'state' },
+        el('div', { class: 'big' }, 'لا قرارات مسجَّلة'),
+        (mg && mg.explanation ? mg.explanation.join(' ') : '')
+        + ' فعّل الطبقة عبر adaptive.enabled ثم شغّل المتداول.')));
+  }
+
+  const exiting = mg.exit_decision && mg.exit_decision !== 'HOLD';
+
+  const decisionCard = el('section', { class: 'card' },
+    el('h2', {}, '🎯 القرار الحالي',
+       badge(mg.exit_decision || 'HOLD', exiting ? 'buy' : 'unk')),
+    el('div', { class: 'state' },
+      el('div', { class: 'big' }, mg.exit_decision || 'HOLD'),
+      mg.why || mg.exit_reason || '—'),
+    el('div', { class: 'rows' },
+      field('الرمز', mg.symbol || NA),
+      field('المركز', isNil(mg.position_id) ? NA : `#${mg.position_id}`),
+      field('طُبِّق فعلياً', badge(mg.applied || 'NONE',
+                                  mg.applied === 'APPLIED' ? 'on' : 'unk'))));
+
+  const regimeCard = el('section', { class: 'card' },
+    el('h2', {}, '🌐 حالة السوق'),
+    el('div', { class: 'rows' },
+      field('الحالة المثبَّتة', mg.market_regime || NA),
+      field('ثقة الحالة', isNil(mg.regime_confidence) ? NA
+                          : num(mg.regime_confidence, 3)),
+      field('شمعات في الحالة', isNil(mg.regime_bars) ? NA : mg.regime_bars),
+      field('ATR', isNil(mg.atr) ? NA : price(mg.atr)),
+      field('السعر وقت القرار', isNil(mg.price) ? NA : price(mg.price))));
+
+  const targetCard = el('section', { class: 'card' },
+    el('h2', {}, '🎚️ الهدف والوقف'),
+    el('div', { class: 'rows' },
+      field('الهدف الأصلي', isNil(mg.original_take_profit) ? NA
+                            : price(mg.original_take_profit)),
+      field('الهدف التكيّفي', isNil(mg.adaptive_take_profit) ? NA
+                              : price(mg.adaptive_take_profit)),
+      field('تعديل الهدف', isNil(mg.tp_adjustment_pct) ? NA
+                           : `${num(mg.tp_adjustment_pct, 3)}%`),
+      field('الوقف الأصلي', isNil(mg.original_stop) ? NA
+                            : price(mg.original_stop)),
+      field('الوقف الحالي', isNil(mg.current_stop) ? NA
+                            : price(mg.current_stop)),
+      field('حالة التعادل', badge(mg.break_even_status || 'UNKNOWN',
+                                  mg.break_even_status === 'DONE' ? 'on' : 'unk')),
+      field('حالة التتبّع', badge(mg.trailing_status || 'UNKNOWN',
+                                  mg.trailing_status === 'ACTIVE' ? 'on' : 'unk'))));
+
+  const excursionCard = el('section', { class: 'card' },
+    el('h2', {}, '📈 مسار الصفقة'),
+    el('div', { class: 'rows' },
+      field('أقصى ربح عائم (MFE)', isNil(mg.mfe_pct) ? NA
+                                   : `${num(mg.mfe_pct, 3)}%`),
+      field('أقصى خسارة عائمة (MAE)', isNil(mg.mae_pct) ? NA
+                                      : `${num(mg.mae_pct, 3)}%`),
+      field('زمن في الصفقة', isNil(mg.time_in_trade_hours) ? NA
+                             : `${num(mg.time_in_trade_hours, 2)} ساعة`),
+      field('وقت القرار', mg.decision_ts ? ts(mg.decision_ts) : NA)));
+
+  const whyCard = el('section', { class: 'card' },
+    el('h2', {}, '❓ لماذا يخرج النظام؟'),
+    el('div', { class: 'state' },
+      el('div', { class: 'big' }, mg.exit_decision || 'HOLD'),
+      mg.why || 'لا تعديل مبرَّر على الوقف أو الهدف في هذه الدورة.'),
+    details('سجل التدقيق الكامل',
+            el('pre', { class: 'pre' }, JSON.stringify(mg.audit || {}, null, 2))));
+
+  const cols = [
+    { label: 'الوقت', render: (r) => ts(r.ts) },
+    { label: 'الحالة', render: (r) => r.market_regime || NA },
+    { label: 'القرار', render: (r) => badge(r.decision || NA,
+        r.decision && r.decision !== 'HOLD' ? 'buy' : 'unk') },
+    { label: 'وقف ⇒ جديد', render: (r) => (isNil(r.new_stop) ? NA
+        : `${price(r.current_stop)} ⇒ ${price(r.new_stop)}`) },
+    { label: 'هدف ⇒ جديد', render: (r) => (isNil(r.new_target) ? NA
+        : `${price(r.current_target)} ⇒ ${price(r.new_target)}`) },
+    { label: 'MFE', render: (r) => (isNil(r.mfe_pct) ? NA
+        : `${num(r.mfe_pct, 2)}%`) },
+    { label: 'طُبِّق', render: (r) => badge(r.applied || 'NONE',
+        r.applied === 'APPLIED' ? 'on' : 'unk') },
+    { label: 'السبب', render: (r) => r.why || r.reason || NA },
+  ];
+  const logCard = el('section', { class: 'card' },
+    el('h2', {}, '🧾 سجل القرارات'),
+    (log && log.length) ? table(cols, log) : empty('لا قرارات بعد'));
+
+  mount(decisionCard, regimeCard, targetCard, excursionCard, whyCard, logCard);
+};
+
 /* ═══ كم أدخل؟ — الأقسام 13 و25 و34 من مواصفة V11 FINAL ═══
    قاعدة صارمة: **لا حساب في هذا الملف إطلاقاً.** كل رقم معروض قادم
    كما هو من `PositionSizer` الكنسي عبر الخلفية. القسم 25 صريح:

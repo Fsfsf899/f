@@ -505,6 +505,18 @@ def create_app(db_path: Optional[str] = None,
     def api_sizing_plans():
         return ok(q.sizing_plans(min(_int('limit', 20) or 20, MAX_LIMIT)))
 
+    @app.get('/api/trade-management')
+    def api_trade_management():
+        """Part B البندان 34/35: الحالة، الهدف التكيّفي، ولماذا يخرج النظام."""
+        return ok(q.trade_management(_int('position_id')))
+
+    @app.get('/api/trade-decisions')
+    def api_trade_decisions():
+        """Part B البند 36: سجل التدقيق الكامل لقرارات الإدارة."""
+        return ok(q.trade_decisions(
+            limit=min(_int('limit', 50) or 50, MAX_LIMIT),
+            position_id=_int('position_id')))
+
     @app.get('/api/settings')
     def api_settings():
         return ok(q.settings())

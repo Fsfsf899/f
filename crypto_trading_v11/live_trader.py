@@ -35,6 +35,10 @@ from src.account.sizing_plan import build_sizing_plan
 from src.risk.risk_guard import RiskGuard
 from src.backtest.costs import CostModel
 from src.storage.database import Database
+import numpy as np
+from src.trade_management import AdaptiveTradeManager, MarketView, TradeState
+from src.trade_management.hysteresis import confirm
+from src.market.regime import detect_series
 from src.monitoring.health import HealthMonitor
 from src.monitoring.notify import Notifier
 from src.monitoring.accuracy import AccuracyTracker
@@ -112,7 +116,12 @@ class LiveTrader:
         # (الافتراضي)، النتيجة مطابقة حرفياً لـ SignalEngine المباشر
         # — مُختبَر صراحة (test_adapter_identical_to_direct_signal_engine_when_disabled).
         self.engine = RouterAsSignalEngine(cfg, db=self.db)
-        self.sizer = PositionSizer(cfg.risk, CostModel(cfg.costs))
+        # نموذج تكاليف واحد يتشاركه المُحجِّم والمحرك التكيّفي: حساب
+        # التعادل الصافي يجب أن يستخدم نفس رسوم وانزلاق التنفيذ، وإلا
+        # كان "تعادلاً" بأرقام لا تطابق ما يُخصم فعلاً.
+        self.costs = CostModel(cfg.costs)
+        self.sizer = PositionSizer(cfg.risk, self.costs)
+        self.atm = AdaptiveTradeManager(cfg, self.costs)
 
         self.client = None
         self.orders = None
@@ -296,6 +305,114 @@ class LiveTrader:
             self.symbol = held
         return None
 
+    def _manage_open_position(self, data, q, now: str, verbose: bool) -> Optional[dict]:
+        """
+        Part B: إدارة المركز المفتوح بعد الحماية وقبل أي إشارة جديدة.
+
+        ⚠️ هذه هي النقطة التي أخفق فيها هذا المشروع ست مرّات: مكوّن
+        مبنيّ ومختبَر وموثَّق لكنه غير موصول بالمسار الذي يعمل فعلاً.
+        التعادل والتتبّع كانا موجودَين في الباكتست **وحده** منذ V8، فكل
+        نتيجة باكتست تفترض حمايةً لم يكن التنفيذ الحي يطبّقها إطلاقاً.
+
+        يُرجع None دائماً (لا يوقف الدورة) — الإدارة لا تحجب التقييم.
+        """
+        if not self.cfg.adaptive.enabled or self.orders is None:
+            return None
+        rows = [p for p in self.db.open_positions() if p['symbol'] == self.symbol]
+        if not rows:
+            return None
+        pos = rows[0]
+
+        # فشل مغلق على البيانات (Part C البند 6): قرار إدارة مبنيّ على
+        # بيانات مشكوكة أسوأ من لا قرار — قد يحرّك وقفاً بسعر خاطئ.
+        if q.score < self.cfg.no_trade.min_data_quality:
+            self.db.risk_event('ADAPTIVE_SKIPPED_DATA_QUALITY', 'WARNING',
+                               f'{self.symbol}: جودة {q.score:.2f}', self.symbol)
+            return None
+
+        i = len(data) - 1
+        prep = self.engine.prepare(data)
+        atr_arr = prep['ind']['atr']
+        atr_v = float(atr_arr[i]) if np.isfinite(atr_arr[i]) else 0.0
+
+        res_arr = prep['st'].get('resistance')
+        res = None
+        if res_arr is not None and i < len(res_arr) and np.isfinite(res_arr[i]):
+            res = float(res_arr[i])
+
+        raw_reg = detect_series(data.close, self.cfg.regime,
+                                prep['ind'].get('adx'), data.interval)
+        reg_label = confirm([str(x) for x in raw_reg], self.cfg.adaptive)
+
+        # ── MFE/MAE تُشتقّ من الشموع منذ الدخول، لا من حالة محفوظة.
+        # السبب: أي عدّاد في الذاكرة يُصفَّر عند إعادة التشغيل فيظن
+        # النظام أن الصفقة لم تربح قط، فيتراجع عن تعادل استحقّته.
+        # الاشتقاق من الشموع ناجٍ من إعادة التشغيل وقابل لإعادة الإنتاج.
+        entry_px = float(pos['entry_price'])
+        opened = int(pos['opened_ts'] or 0)
+        j = int(np.searchsorted(data.open_time, opened, side='left'))
+        j = max(0, min(j, i))
+        mfe_pct = float((data.high[j:i + 1].max() - entry_px) / entry_px * 100)
+        mae_pct = float((data.low[j:i + 1].min() - entry_px) / entry_px * 100)
+
+        state = TradeState(
+            entry_price=entry_px, qty=float(pos['qty']),
+            # ⚠️ الوقف الأصلي لا الحالي: `stop_loss` يتحرّك بالتعادل
+            # والتتبّع، فلو حُسبت R منه لصارت سالبة بعد أول نقل
+            # (التعادل الصافي فوق الدخول) فيرفض المحرك كل قرار تالٍ
+            # بـ INSUFFICIENT_DATA — أي يموت التتبّع في المسار الحي
+            # صامتاً. عمودا `initial_*` أُضيفا لهذا تحديداً.
+            initial_stop=float(pos.get('initial_stop') or pos['stop_loss'] or 0),
+            current_stop=float(pos['stop_loss'] or 0),
+            initial_target=float(pos.get('initial_target')
+                                 or pos.get('take_profit') or 0),
+            current_target=float(pos.get('take_profit') or 0),
+            opened_ms=opened, entry_fee=float(pos.get('fees') or 0.0),
+            mfe_pct=mfe_pct, mae_pct=mae_pct,
+            bars_held=i - j, position_id=pos['id'], symbol=self.symbol)
+
+        view = MarketView(
+            price=float(data.close[i]), atr=atr_v, regime=reg_label.regime,
+            regime_confidence=0.0, resistance=res,
+            high=float(data.high[i]), low=float(data.low[i]),
+            now_ms=self.public.now_ms(), bar_ms=data.interval_ms)
+
+        vol_mult = max(atr_v / max(view.price, 1e-9) * 100, 0.5)
+        dec = self.atm.evaluate(state, view, vol_mult=vol_mult)
+
+        applied = 'NONE'
+        if dec.changes_stop or dec.changes_target:
+            r = self.orders.apply_protection_change(
+                pos, new_stop=dec.new_stop, new_target=dec.new_target,
+                reason=dec.decision)
+            applied = r.get('action', 'UNKNOWN')
+            if verbose:
+                print(f'[{now}] 🎯 {dec.decision}: {dec.reason_ar} ⇒ {applied}')
+        if dec.is_exit and applied not in ('STOP_FILLED_SETTLED',):
+            ok = self.orders.close_long(pos, reason='STAGNATION_EXIT')
+            applied = 'EXITED' if ok else 'EXIT_FAILED'
+            if verbose:
+                print(f'[{now}] ⏱️ خروج ركود: {dec.reason_ar} ⇒ {applied}')
+
+        self.db.save_trade_decision(
+            position_id=pos['id'], symbol=self.symbol,
+            bar_time=int(data.open_time[i]),
+            market_regime=reg_label.regime,
+            regime_confidence=float(dec.audit.get('regime_confidence') or 0.0),
+            regime_bars=reg_label.bars_in_regime,
+            price=view.price, atr=atr_v,
+            original_stop=state.initial_stop, current_stop=state.current_stop,
+            new_stop=dec.new_stop,
+            original_target=state.initial_target,
+            current_target=state.current_target, new_target=dec.new_target,
+            break_even_state='DONE' if state.breakeven_done else 'PENDING',
+            trailing_state='ACTIVE' if state.trailing_active else 'INACTIVE',
+            mfe_pct=mfe_pct, mae_pct=mae_pct,
+            time_in_trade_h=(view.now_ms - opened) / 3_600_000.0 if opened else 0.0,
+            decision=dec.decision, reason=dec.reason, reason_ar=dec.reason_ar,
+            applied=applied, audit=dec.audit)
+        return None
+
     def tick(self, verbose: bool = True) -> dict:
         now = datetime.now().strftime('%H:%M:%S')
         dk = day_key()
@@ -423,6 +540,11 @@ class LiveTrader:
                               data_quality=q.score, day_key=dk)
         if not h.can_open_new and verbose:
             print(f'[{now}] ⚠️ {h.reasons}')
+
+        # 4ب) Part B — إدارة المركز المفتوح. تسبق الإشارة عمداً: مركز
+        # قائم يُدار سواء سُمح بفتح جديد أو لا، والخروج المبكّر أدناه
+        # (`sig.decision != BUY`) كان سيتخطّاها لو وُضعت بعده.
+        self._manage_open_position(data, q, now, verbose)
 
         # 5) الإشارة — على آخر شمعة مغلقة
         i = len(data) - 1
